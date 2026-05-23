@@ -20,10 +20,14 @@ SMTP_TIMEOUT = 30
 def load_email_config() -> dict[str, str]:
     """Load Gmail credentials from environment / .env file.
 
+    Required keys: GMAIL_ADDRESS, GMAIL_APP_PASSWORD
+    Optional key:  TO_ADDRESS (used by the CLI; the web app uses each user's
+                   own email address and does not need this key)
+
     Raises RuntimeError with a clear pointer to .env.example if anything is missing.
     """
     load_dotenv()
-    required = ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD", "TO_ADDRESS")
+    required = ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD")
     config: dict[str, str] = {}
     missing: list[str] = []
     for key in required:
@@ -32,6 +36,11 @@ def load_email_config() -> dict[str, str]:
             missing.append(key)
         else:
             config[key] = val
+
+    # TO_ADDRESS is only needed for the CLI; include it if present but don't require it
+    to_addr = os.environ.get("TO_ADDRESS", "").strip()
+    if to_addr:
+        config["TO_ADDRESS"] = to_addr
 
     if missing:
         raise RuntimeError(

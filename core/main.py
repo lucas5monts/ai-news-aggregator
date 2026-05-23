@@ -120,6 +120,11 @@ def main() -> int:
     # 9. optional email delivery
     if args.send:
         email_cfg = deliver.load_email_config()
+        if "TO_ADDRESS" not in email_cfg:
+            raise RuntimeError(
+                "Missing required environment variable: TO_ADDRESS.\n"
+                "Copy .env.example to .env and set TO_ADDRESS to the delivery address."
+            )
         subject = deliver.build_subject(args.edition, len(stories))
         html = render.render_html(
             stories,
