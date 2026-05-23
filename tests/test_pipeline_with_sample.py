@@ -104,6 +104,15 @@ SAMPLE_FEEDS = {
             hours_ago=3,
         ),
     ],
+    ("Wired AI", "industry", 1.0): [
+        _make_entry(
+            "Anthropic closes $4B round at $50B valuation, sources say",
+            "https://www.wired.com/story/anthropic-4b-round",
+            "Anthropic has closed a new funding round worth roughly $4 billion "
+            "at a $50 billion valuation, according to people familiar with the deal.",
+            hours_ago=6,
+        ),
+    ],
 }
 
 
@@ -160,6 +169,22 @@ def main() -> None:
 
     source_weights = {name: w for (name, _, w), _ in SAMPLE_FEEDS.items()}
     stories = pipeline.rank(stories, source_weights)
+    before_dedupe = len(stories)
+    stories = pipeline.dedupe(stories)
+    print(f"[test] {len(stories)} stories after dedupe (was {before_dedupe})")
+
+    funding = [
+        s for s in stories
+        if "anthropic" in s.title.lower() and "4b" in s.title.lower()
+    ]
+    assert len(funding) == 1, f"expected 1 Anthropic funding story, got {len(funding)}"
+    assert "Wired AI" in funding[0].alt_sources, (
+        f"expected Wired AI in alt_sources, got {funding[0].alt_sources}"
+    )
+    assert len(stories) == before_dedupe - 1, (
+        f"dedupe should remove exactly 1 story, {before_dedupe} -> {len(stories)}"
+    )
+
     stories = pipeline.cap(stories, 15)
 
     with tempfile.TemporaryDirectory() as tmp:

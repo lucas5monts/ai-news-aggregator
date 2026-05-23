@@ -88,16 +88,19 @@ def main() -> int:
     source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in sources_cfg["sources"]}
     stories = pipeline.rank(stories, source_weights)
 
-    # 5. cap
+    # 5. dedupe
+    stories = pipeline.dedupe(stories)
+
+    # 6. cap
     stories = pipeline.cap(stories, max_stories)
 
-    # 6. persist
+    # 7. persist
     db_path = PROJECT_ROOT / "data.db"
     with storage.connect(db_path) as conn:
         inserted = storage.upsert_stories(conn, stories)
     log.info("stored %d new stories (total in digest: %d)", inserted, len(stories))
 
-    # 7. render
+    # 8. render
     output = render.render_plaintext(
         stories,
         edition=args.edition,

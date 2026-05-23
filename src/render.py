@@ -73,6 +73,8 @@ def render_plaintext(
                 for chunk in _wrap(s.summary, width=72):
                     lines.append(f"  {chunk}")
             lines.append(f"  → {s.url}")
+            if s.alt_sources:
+                lines.append(f"  Also covered by: {' · '.join(s.alt_sources)}")
             lines.append("")
         lines.append("")
 

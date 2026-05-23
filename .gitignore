@@ -1,0 +1,17 @@
+# Local runtime
+data.db
+data.db-journal
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets (Phase 3+)
+.env
+.env.*
+
+# IDE / debug
+.cursor/

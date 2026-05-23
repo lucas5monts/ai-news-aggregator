@@ -1,7 +1,6 @@
-"""Normalize raw RSS entries, filter for relevance, and rank.
+"""Normalize raw RSS entries, filter for relevance, rank, and dedupe.
 
-Phase 1 keeps this small: normalize → relevance filter → simple recency rank.
-Phase 2 will add rapidfuzz-based dedupe across sources.
+Pipeline: normalize → relevance filter → recency rank → fuzzy dedupe.
 """
 from __future__ import annotations
 
@@ -13,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Any
+
+from rapidfuzz import fuzz
 
 from .fetch import RawEntry
 
@@ -167,3 +168,84 @@ def rank(stories: list[Story], source_weights: dict[str, float]) -> list[Story]:
 
 def cap(stories: list[Story], n: int) -> list[Story]:
     return stories[:n]
+
+
+_STOPWORDS = frozenset({"the", "a", "is", "for", "to"})
+_DEDUPE_THRESHOLD = 90
+
+
+def _normalize_title(title: str) -> str:
+    lowered = title.lower()
+    cleaned = re.sub(r"[^\w\s]", " ", lowered)
+    tokens = [t for t in cleaned.split() if t and t not in _STOPWORDS]
+    return " ".join(tokens)
+
+
+class _UnionFind:
+    def __init__(self, n: int) -> None:
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x: int) -> int:
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a: int, b: int) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return
+        if self.rank[ra] < self.rank[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        if self.rank[ra] == self.rank[rb]:
+            self.rank[ra] += 1
+
+
+def dedupe(stories: list[Story]) -> list[Story]:
+    """Collapse near-duplicate titles across sources; keep highest-scored primary."""
+    if not stories:
+        log.info("dedupe: 0 stories collapsed into 0 clusters (0 primaries kept)")
+        return []
+
+    n = len(stories)
+    norms = [_normalize_title(s.title) for s in stories]
+    uf = _UnionFind(n)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if fuzz.token_set_ratio(norms[i], norms[j]) >= _DEDUPE_THRESHOLD:
+                uf.union(i, j)
+
+    clusters: dict[int, list[Story]] = {}
+    for i, story in enumerate(stories):
+        clusters.setdefault(uf.find(i), []).append(story)
+
+    result: list[Story] = []
+    collapsed = 0
+    multi_clusters = 0
+
+    for members in clusters.values():
+        members.sort(key=lambda s: s.score, reverse=True)
+        primary = members[0]
+        alt: list[str] = []
+        seen = {primary.source_name}
+        for m in members[1:]:
+            if m.source_name not in seen:
+                alt.append(m.source_name)
+                seen.add(m.source_name)
+        primary.alt_sources = alt
+        result.append(primary)
+        if len(members) > 1:
+            multi_clusters += 1
+            collapsed += len(members) - 1
+
+    result.sort(key=lambda s: s.score, reverse=True)
+    log.info(
+        "dedupe: %d stories collapsed into %d clusters (%d primaries kept)",
+        collapsed,
+        multi_clusters,
+        len(result),
+    )
+    return result

@@ -27,7 +27,9 @@ sources:
     weight: 1.0
     enabled: true
 
-  # ----- Phase 2 additions (currently disabled) -----
+  # ----- Phase 2 additions -----
+  # No official RSS feed found — /news/rss.xml 404s and anthropic.com/news
+  # has no rel=alternate feed link in page source.
   - name: Anthropic News
     url: https://www.anthropic.com/news/rss.xml
     category: industry
@@ -38,16 +40,16 @@ sources:
     url: https://deepmind.google/blog/rss.xml
     category: research
     weight: 1.3
-    enabled: false
+    enabled: true
 
   - name: Wired AI
     url: https://www.wired.com/feed/tag/ai/latest/rss
     category: industry
     weight: 1.0
-    enabled: false
+    enabled: true
 
   - name: MIT Tech Review AI
     url: https://www.technologyreview.com/topic/artificial-intelligence/feed
     category: policy
     weight: 1.2
-    enabled: false
+    enabled: true
