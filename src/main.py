@@ -1,19 +1,21 @@
 """AI News Aggregator — entrypoint.
 
 Usage:
-    python -m src.main morning   # last 24h
-    python -m src.main evening   # last 12h
+    python -m src.main morning         # last 24h, print to terminal
+    python -m src.main morning --send  # same + email digest via Gmail
+    python -m src.main evening         # last 12h
 """
 from __future__ import annotations
 
 import argparse
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-from . import fetch, pipeline, render, storage
+from . import deliver, fetch, pipeline, render, storage
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -55,6 +57,11 @@ def main() -> int:
         type=int,
         default=None,
         help="Override the default time window for this edition",
+    )
+    parser.add_argument(
+        "--send",
+        action="store_true",
+        help="Send the digest via Gmail SMTP (requires .env with credentials)",
     )
     args = parser.parse_args()
     _setup_logging(args.verbose)
@@ -100,7 +107,7 @@ def main() -> int:
         inserted = storage.upsert_stories(conn, stories)
     log.info("stored %d new stories (total in digest: %d)", inserted, len(stories))
 
-    # 8. render
+    # 8. render plaintext (always)
     output = render.render_plaintext(
         stories,
         edition=args.edition,
@@ -109,6 +116,30 @@ def main() -> int:
     )
     print()
     print(output)
+
+    # 9. optional email delivery
+    if args.send:
+        email_cfg = deliver.load_email_config()
+        subject = deliver.build_subject(args.edition, len(stories))
+        html = render.render_html(
+            stories,
+            edition=args.edition,
+            category_order=category_order,
+            total_scanned=total_scanned,
+        )
+        deliver.send_digest(
+            subject=subject,
+            plaintext=output,
+            html=html,
+            to_address=email_cfg["TO_ADDRESS"],
+            from_address=email_cfg["GMAIL_ADDRESS"],
+            app_password=email_cfg["GMAIL_APP_PASSWORD"],
+        )
+        sent_at = datetime.now(timezone.utc)
+        with storage.connect(db_path) as conn:
+            updated = storage.mark_sent(conn, [s.id for s in stories], sent_at)
+        log.info("marked %d stories as sent", updated)
+
     return 0
 
 

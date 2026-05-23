@@ -1,10 +1,15 @@
-"""Render a digest. Phase 1: plain text only (printed to terminal)."""
+"""Render a digest as plain text or HTML email."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable
 
+from jinja2 import Environment, FileSystemLoader
+
 from .pipeline import Story
+
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
 def _relative_time(dt: datetime) -> str:
@@ -84,6 +89,45 @@ def render_plaintext(
         f"Dropped {total_scanned - len(stories)}"
     )
     return "\n".join(lines)
+
+
+def render_html(
+    stories: Iterable[Story],
+    edition: str,
+    category_order: list[str],
+    total_scanned: int,
+) -> str:
+    """Return a self-contained HTML email with inline CSS only."""
+    stories = list(stories)
+    now = datetime.now().strftime("%a %b %d · %I:%M %p").replace(" 0", " ")
+
+    by_category: dict[str, list[Story]] = {}
+    for s in stories:
+        by_category.setdefault(s.source_category, []).append(s)
+
+    seen_cats: list[str] = []
+    for cat in category_order:
+        if cat in by_category:
+            seen_cats.append(cat)
+    for cat in by_category:
+        if cat not in seen_cats:
+            seen_cats.append(cat)
+
+    env = Environment(
+        loader=FileSystemLoader(str(_TEMPLATE_DIR)),
+        autoescape=True,
+    )
+    env.filters["relative_time"] = _relative_time
+    template = env.get_template("digest.html.j2")
+
+    return template.render(
+        stories=stories,
+        edition=edition,
+        now=now,
+        by_category=by_category,
+        seen_cats=seen_cats,
+        total_scanned=total_scanned,
+    )
 
 
 def _wrap(text: str, width: int) -> list[str]:

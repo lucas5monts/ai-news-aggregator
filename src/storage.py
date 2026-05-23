@@ -44,6 +44,22 @@ def connect(db_path: Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def mark_sent(
+    conn: sqlite3.Connection,
+    story_ids: list[str],
+    sent_at: datetime,
+) -> int:
+    """Set sent_at on stories that haven't been marked sent yet. Returns row count."""
+    if not story_ids:
+        return 0
+    placeholders = ",".join("?" * len(story_ids))
+    cur = conn.execute(
+        f"UPDATE stories SET sent_at=? WHERE id IN ({placeholders}) AND sent_at IS NULL",
+        [sent_at.isoformat(), *story_ids],
+    )
+    return cur.rowcount
+
+
 def upsert_stories(conn: sqlite3.Connection, stories: list[Story]) -> int:
     """Insert new stories; ignore ones we've already stored. Returns inserts."""
     now = datetime.utcnow().isoformat()
