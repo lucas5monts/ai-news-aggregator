@@ -1,0 +1,53 @@
+# RSS feed sources for the AI news aggregator.
+# Phase 1 starts with 3 reliable feeds. Phase 2 expands to the full list.
+#
+# Each source has:
+#   name:     short display label (shown in the digest)
+#   url:      RSS/Atom feed URL
+#   category: one of [research, industry, policy, tools]
+#   weight:   ranking multiplier (1.0 = normal, >1 = boost, <1 = de-prioritize)
+#   enabled:  toggle on/off without deleting the entry
+
+sources:
+  - name: OpenAI News
+    url: https://openai.com/news/rss.xml
+    category: industry
+    weight: 1.5
+    enabled: true
+
+  - name: Hugging Face Blog
+    url: https://huggingface.co/blog/feed.xml
+    category: tools
+    weight: 1.2
+    enabled: true
+
+  - name: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    category: industry
+    weight: 1.0
+    enabled: true
+
+  # ----- Phase 2 additions (currently disabled) -----
+  - name: Anthropic News
+    url: https://www.anthropic.com/news/rss.xml
+    category: industry
+    weight: 1.5
+    enabled: false
+
+  - name: Google DeepMind Blog
+    url: https://deepmind.google/blog/rss.xml
+    category: research
+    weight: 1.3
+    enabled: false
+
+  - name: Wired AI
+    url: https://www.wired.com/feed/tag/ai/latest/rss
+    category: industry
+    weight: 1.0
+    enabled: false
+
+  - name: MIT Tech Review AI
+    url: https://www.technologyreview.com/topic/artificial-intelligence/feed
+    category: policy
+    weight: 1.2
+    enabled: false

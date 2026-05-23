@@ -1,0 +1,44 @@
+# Runtime settings for the news aggregator.
+
+# Maximum stories to include in any single digest
+max_stories: 15
+
+# Only include stories published within the last N hours
+# (morning edition = 24h, evening = ~12h, set by main.py)
+default_time_window_hours: 24
+
+# AI-relevance keyword filter. A story passes if ANY of these appear in
+# the title or summary (case-insensitive). Set to an empty list to disable.
+relevance_keywords:
+  - ai
+  - artificial intelligence
+  - machine learning
+  - llm
+  - gpt
+  - claude
+  - gemini
+  - llama
+  - mistral
+  - openai
+  - anthropic
+  - deepmind
+  - hugging face
+  - transformer
+  - neural network
+  - deep learning
+  - agent
+  - rag
+  - fine-tun
+  - inference
+
+# Digest format
+digest:
+  show_source: true
+  show_published_relative: true   # "2h ago" instead of timestamp
+  max_summary_chars: 280
+  group_by_category: true
+  category_order:
+    - industry
+    - research
+    - tools
+    - policy
