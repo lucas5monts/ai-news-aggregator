@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Preview — AI News Dashboard{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-bold">Email Preview</h1>
+  <div class="flex items-center gap-3">
+    <span class="text-sm text-gray-500">{{ story_count }} stories</span>
+    <form method="POST" action="{{ url_for('main.preview_send') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium
+                     py-1.5 px-4 rounded-md transition-colors"
+              onclick="return confirm('Send test digest to your email?')">
+        ✉ Send to me
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+  <iframe
+    srcdoc="{{ html_content | e }}"
+    class="w-full border-0"
+    style="height: 75vh;"
+    title="Email preview"
+    sandbox="allow-same-origin">
+  </iframe>
+</div>
+
+<p class="text-xs text-gray-400 mt-2 text-center">
+  This is how the email will look in your inbox. Styles are self-contained.
+</p>
+{% endblock %}

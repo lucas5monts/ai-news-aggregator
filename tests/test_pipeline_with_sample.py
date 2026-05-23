@@ -1,7 +1,7 @@
 """End-to-end pipeline test using a synthetic RSS feed.
 
 This exists because the dev sandbox can't reach live RSS hosts.
-On a real machine, you just run `python -m src.main morning` and get
+On a real machine, you just run `python -m core.main morning` and get
 real feeds — this test confirms the normalize→filter→rank→render code
 works without needing network.
 """
@@ -13,13 +13,13 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
 
-# Make `src` importable when running this file directly
+# Make `core` importable when running this file directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import feedparser  # noqa: E402
 
-from src import pipeline, render, storage  # noqa: E402
-from src.fetch import RawEntry  # noqa: E402
+from core import pipeline, render, storage  # noqa: E402
+from core.fetch import RawEntry  # noqa: E402
 
 # -------- synthesize realistic RSS feeds --------
 
@@ -201,6 +201,11 @@ def main() -> None:
     )
     print()
     print(output)
+
+
+def test_pipeline_e2e() -> None:
+    """pytest entry point — runs the same assertions as main()."""
+    main()
 
 
 if __name__ == "__main__":

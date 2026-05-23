@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Feed — AI News Dashboard{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-bold">Today's Feed</h1>
+  <button
+    hx-post="{{ url_for('main.feed_refresh') }}"
+    hx-target="#feed-items"
+    hx-swap="innerHTML"
+    hx-indicator="#refresh-spinner"
+    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium
+           px-3 py-1.5 rounded-md transition-colors flex items-center gap-2">
+    <span id="refresh-spinner" class="htmx-indicator text-blue-500">⟳</span>
+    Refresh
+  </button>
+</div>
+
+<div id="feed-items">
+  {% include "feed_items.html" %}
+</div>
+{% endblock %}

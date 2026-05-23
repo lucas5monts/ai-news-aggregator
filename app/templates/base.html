@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AI News Dashboard{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <!-- Wire HTMX to send the CSRF token on every non-GET request via header.
+       Flask-WTF accepts X-CSRFToken as an alternative to the form field. -->
+  <script>
+    document.body.addEventListener('htmx:configRequest', (e) => {
+      if (e.detail.verb !== 'get') {
+        e.detail.headers['X-CSRFToken'] =
+          document.querySelector('meta[name=csrf-token]').content;
+      }
+    });
+  </script>
+  <style>
+    [x-cloak] { display: none; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- Top bar -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <span class="font-bold text-lg tracking-tight">📰 AI News Dashboard</span>
+      {% if current_user.is_authenticated %}
+      <div class="flex items-center gap-4 text-sm text-gray-500">
+        <span>{{ current_user.email }}</span>
+        <form method="POST" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="text-gray-400 hover:text-red-500 transition-colors">
+            Sign out
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="max-w-5xl mx-auto px-4 py-6 flex gap-6">
+
+    {% if current_user.is_authenticated %}
+    <!-- Sidebar nav -->
+    <nav class="w-44 shrink-0">
+      <ul class="space-y-1 text-sm font-medium">
+        <li>
+          <a href="{{ url_for('main.feed') }}"
+             class="block px-3 py-2 rounded-md
+                    {% if request.endpoint == 'main.feed' %}bg-blue-50 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            📡 Feed
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('main.settings') }}"
+             class="block px-3 py-2 rounded-md
+                    {% if request.endpoint in ('main.settings', 'main.settings_post') %}bg-blue-50 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            ⚙️ Settings
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('main.preview') }}"
+             class="block px-3 py-2 rounded-md
+                    {% if request.endpoint == 'main.preview' %}bg-blue-50 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            👁 Preview
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('main.archive') }}"
+             class="block px-3 py-2 rounded-md
+                    {% if request.endpoint in ('main.archive', 'main.archive_view') %}bg-blue-50 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            🗃 Archive
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Main content -->
+    <main class="flex-1 min-w-0">
+
+      <!-- Flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="mb-4 space-y-2">
+            {% for category, message in messages %}
+              <div class="px-4 py-3 rounded-md text-sm
+                          {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200
+                          {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+                          {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+</body>
+</html>

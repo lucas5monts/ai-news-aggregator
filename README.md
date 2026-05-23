@@ -1,66 +1,118 @@
-# AI News Aggregator
+# AI News Dashboard
 
-A personal, zero-cost AI news digest that emails you a curated brief at 6:00 AM and 8:00 PM.
+A self-hosted, multi-user AI news aggregator with a web dashboard, magic-link auth, and an in-process digest scheduler. Fetches from curated RSS feeds (OpenAI, Hugging Face, TechCrunch, DeepMind, Wired, MIT Tech Review), runs them through a normalize → filter → rank → dedupe pipeline, and emails you a formatted digest at 6 AM and 8 PM in your timezone.
 
-## Status
+![dashboard](docs/screenshot.png)
 
-- ✅ **Phase 1** — Walking skeleton: 3 RSS feeds → SQLite → terminal digest
-- ✅ **Phase 2** — Full source list + fuzzy-match dedupe + ranking
-- ✅ **Phase 3** — HTML email + Gmail SMTP delivery
-- ⏳ Phase 4 — launchd scheduling + 8 PM "what you missed" edition
-- ⏳ Phase 5 — (optional) Ollama local LLM summaries
+---
 
-## Quickstart
+## Quickstart (local dev)
 
 ```bash
-# install deps (one-time)
+# Clone and set up
+git clone https://github.com/<you>/ai-news-aggregator.git
+cd ai-news-aggregator
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# run morning digest — prints to terminal, no email sent
-python3 -m src.main morning
+# Configure credentials
+cp .env.example .env
+# Edit .env — fill in GMAIL_ADDRESS, GMAIL_APP_PASSWORD, TO_ADDRESS
 
-# run AND email the digest to yourself
-python3 -m src.main morning --send
-
-# evening edition (12h window)
-python3 -m src.main evening --send
+# Start the dashboard
+python3 run.py
 ```
 
-### Setting up email (--send)
+Open [http://localhost:5000](http://localhost:5000).
 
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Follow the "Gmail App Password" instructions in `.env.example` to generate
-   a 16-character app password, then fill in the three variables:
-   ```
-   GMAIL_ADDRESS=you@gmail.com
-   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
-   TO_ADDRESS=you@gmail.com
-   ```
-3. Test: `python3 -m src.main morning --send`
+On first visit you'll be prompted to sign in. Enter your email — a magic link will be sent to your inbox. Click it and you're in.
 
-## Layout
+---
+
+## CLI (still works)
+
+```bash
+# Morning digest — print to terminal
+python3 -m core.main morning
+
+# Morning digest — also email it
+python3 -m core.main morning --send
+
+# Evening edition
+python3 -m core.main evening --send
+```
+
+---
+
+## Features
+
+### Auth — magic links
+No passwords. Enter your email, receive a one-time sign-in link (valid 15 minutes). Anyone who signs up gets their own account with independent source and schedule preferences.
+
+### Web dashboard
+| Page | What it does |
+|------|-------------|
+| `/feed` | Live story feed for your enabled sources, with an HTMX refresh button |
+| `/settings` | Toggle sources, enable/disable morning + evening digest, set timezone |
+| `/preview` | See exactly what the next email will look like (in an iframe) |
+| `/archive` | Browse every digest you've been sent |
+
+### In-process scheduler (APScheduler)
+- **Hourly** — refreshes the global story cache from all sources
+- **Every minute** — checks if it's 6:00 AM or 8:00 PM in each user's timezone, and sends their personalized digest if so
+- Idempotent: won't double-send if the server restarts mid-minute
+- Disable with `ENABLE_SCHEDULER=0` if you want a separate cron process
+
+---
+
+## Deploying to production
+
+See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions for Render and Fly.io.
+
+Short version:
+1. Push to GitHub
+2. Create a Render Web Service (auto-detects Dockerfile)
+3. Add environment variables (see `.env.example`)
+4. Add a Render Postgres database, paste the URL into `DATABASE_URL`
+5. Deploy
+
+---
+
+## Project layout
 
 ```
 ai-news-aggregator/
+├── core/                  ← pipeline (fetch, normalize, rank, dedupe, render, deliver)
+│   └── templates/digest.html.j2
+├── app/                   ← Flask web layer
+│   ├── __init__.py        ← create_app() factory
+│   ├── models.py          ← SQLAlchemy: User, MagicLink, UserSettings, UserSource, Digest
+│   ├── auth.py            ← magic-link login flow + Flask-Login
+│   ├── routes.py          ← all web routes
+│   ├── scheduler.py       ← APScheduler jobs
+│   └── templates/         ← Jinja2 + Tailwind (CDN) + HTMX (CDN)
 ├── config/
-│   ├── sources.yaml           # which RSS feeds to scrape
-│   └── settings.yaml          # max stories, time window, keywords
-├── src/
-│   ├── main.py                # entrypoint (--send flag lives here)
-│   ├── fetch.py               # RSS pulling
-│   ├── pipeline.py            # normalize + filter + dedupe + rank
-│   ├── storage.py             # SQLite helpers
-│   ├── render.py              # plain-text + HTML digest
-│   ├── deliver.py             # Gmail SMTP delivery
-│   └── templates/
-│       └── digest.html.j2     # Jinja2 HTML email template
-├── tests/
-│   ├── test_pipeline_with_sample.py
-│   └── test_render_html.py
-├── .env.example               # copy to .env and fill in credentials
-├── requirements.txt
-└── data.db                    # auto-created
+│   ├── sources.yaml       ← RSS source list
+│   └── settings.yaml      ← global defaults
+├── tests/                 ← pytest suite
+├── run.py                 ← `python3 run.py` dev server
+├── Dockerfile             ← multi-stage Python 3.11 image
+├── gunicorn_conf.py
+├── .env.example
+└── DEPLOY.md
 ```
+
+---
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GMAIL_ADDRESS` | — | Gmail account for sending |
+| `GMAIL_APP_PASSWORD` | — | 16-char Gmail App Password |
+| `TO_ADDRESS` | — | Recipient email (CLI mode) |
+| `SECRET_KEY` | `dev-secret-change-me` | Flask session secret — change in prod! |
+| `DATABASE_URL` | `sqlite:///data.db` | SQLite or `postgres://...` |
+| `FLASK_ENV` | `development` | Set to `production` in prod |
+| `ENABLE_SCHEDULER` | `1` | Set to `0` to disable APScheduler |
+| `PORT` | `5000` / `8080` | Server port (Render/Fly inject this) |

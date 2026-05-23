@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import pipeline, render
-from src.deliver import send_digest
+from core import pipeline, render
+from core.deliver import send_digest
 
 # Reuse the synthetic feed builder from the pipeline test
 from tests.test_pipeline_with_sample import build_raw_entries, SAMPLE_FEEDS
@@ -105,7 +105,7 @@ class TestSendDigest(unittest.TestCase):
         buf = io.StringIO()
         handler = logging.StreamHandler(buf)
         handler.setLevel(logging.DEBUG)
-        log = logging.getLogger("src.deliver")
+        log = logging.getLogger("core.deliver")
         log.addHandler(handler)
         log.setLevel(logging.DEBUG)
 

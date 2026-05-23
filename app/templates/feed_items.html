@@ -1,0 +1,48 @@
+{% if not stories %}
+<div class="text-center py-16 text-gray-400">
+  <p class="text-4xl mb-4">📭</p>
+  <p class="text-lg font-medium">No stories right now.</p>
+  <p class="text-sm mt-1">Try hitting Refresh, or check your source settings.</p>
+</div>
+{% else %}
+
+<p class="text-xs text-gray-400 mb-4">
+  {{ stories | length }} stories · scanned {{ total_scanned }} entries
+</p>
+
+{% set seen_cats = [] %}
+{% for s in stories %}{% if s.source_category not in seen_cats %}{% set _ = seen_cats.append(s.source_category) %}{% endif %}{% endfor %}
+
+{% for cat in seen_cats %}
+  {% set cat_stories = stories | selectattr("source_category", "equalto", cat) | list %}
+  <div class="mb-8">
+    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">
+      {{ cat }} &nbsp;({{ cat_stories | length }})
+    </h2>
+
+    <div class="space-y-5">
+      {% for s in cat_stories %}
+      <article class="bg-white rounded-lg border border-gray-100 p-4 hover:border-gray-200 transition-colors">
+        <h3 class="text-base font-semibold leading-snug mb-1">
+          <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer"
+             class="text-blue-700 hover:text-blue-900 hover:underline">
+            {{ s.title }}
+          </a>
+        </h3>
+        <p class="text-xs text-gray-400 mb-2">
+          {{ s.source_name }}
+          {% if s.alt_sources %}&nbsp;·&nbsp;also: {{ s.alt_sources | join(', ') }}{% endif %}
+          &nbsp;·&nbsp;
+          {% set delta = (now_utc - s.published_at).total_seconds() if now_utc is defined else 0 %}
+          {{ s.published_at.strftime('%b %-d, %H:%M UTC') }}
+        </p>
+        {% if s.summary %}
+        <p class="text-sm text-gray-600 leading-relaxed">{{ s.summary }}</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+
+{% endif %}
