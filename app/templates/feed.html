@@ -1,19 +1,56 @@
 {% extends "base.html" %}
-{% block title %}Feed — AI News Dashboard{% endblock %}
+{% block title %}Feed — AI News{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <h1 class="text-xl font-bold">Today's Feed</h1>
-  <button
-    hx-post="{{ url_for('main.feed_refresh') }}"
-    hx-target="#feed-items"
-    hx-swap="innerHTML"
-    hx-indicator="#refresh-spinner"
-    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium
-           px-3 py-1.5 rounded-md transition-colors flex items-center gap-2">
-    <span id="refresh-spinner" class="htmx-indicator text-blue-500">⟳</span>
-    Refresh
-  </button>
+<div class="mb-8 sm:mb-10">
+  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Live dashboard</p>
+      <h1 class="font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">
+        Today's AI Feed
+      </h1>
+      <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-2 max-w-xl">
+        Top stories from OpenAI, DeepMind, TechCrunch, Wired, and more — ranked and deduped for you.
+      </p>
+    </div>
+    <button
+      hx-post="{{ url_for('main.feed_refresh') }}"
+      hx-target="#feed-items"
+      hx-swap="innerHTML"
+      hx-indicator="#refresh-spinner"
+      class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
+             bg-zinc-900 dark:bg-white text-white dark:text-zinc-900
+             hover:bg-zinc-800 dark:hover:bg-zinc-100 shadow-lg shadow-zinc-900/10 dark:shadow-none
+             transition-all active:scale-[0.98] shrink-0">
+      <span id="refresh-spinner" class="htmx-indicator">
+        <i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i>
+      </span>
+      <i data-lucide="refresh-cw" class="w-4 h-4 htmx-hide-on-request"></i>
+      Refresh feed
+    </button>
+  </div>
+</div>
+
+<!-- Subscribe CTA -->
+<div class="mb-8 rounded-2xl overflow-hidden border border-indigo-200/60 dark:border-indigo-500/20
+            bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10
+            dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-fuchsia-500/10 p-5 sm:p-6
+            flex flex-col sm:flex-row sm:items-center gap-4">
+  <div class="flex items-start gap-4 flex-1">
+    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/25">
+      <i data-lucide="mail" class="w-6 h-6 text-white"></i>
+    </div>
+    <div>
+      <h2 class="font-display font-bold text-base sm:text-lg text-zinc-900 dark:text-white">Get this in your inbox</h2>
+      <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5">Morning & evening digests. No login required.</p>
+    </div>
+  </div>
+  <a href="{{ url_for('subscriptions.subscribe') }}"
+     class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+            bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition-all shrink-0">
+    Subscribe free
+    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+  </a>
 </div>
 
 <div id="feed-items">

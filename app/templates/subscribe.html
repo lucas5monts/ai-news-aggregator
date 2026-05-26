@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Subscribe — AI News{% endblock %}
+
+{% block content %}
+<div class="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center max-w-5xl mx-auto">
+  <!-- Visual panel -->
+  <div class="relative order-2 lg:order-1">
+    <div class="absolute -inset-4 bg-gradient-to-br from-indigo-500/20 via-violet-500/10 to-transparent rounded-3xl blur-2xl"></div>
+    <div class="relative rounded-3xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 shadow-2xl">
+      <div class="aspect-[4/5] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-700 relative">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_50%)]"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(0,0,0,0.2),transparent_40%)]"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
+          <p class="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-2">Daily digest</p>
+          <h2 class="font-display text-2xl sm:text-3xl font-bold leading-tight">AI news, curated & delivered</h2>
+          <p class="text-sm text-white/80 mt-3 leading-relaxed">The best stories from top sources — ranked, deduped, and formatted for your inbox.</p>
+          <div class="flex flex-wrap gap-2 mt-5">
+            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">6 AM</span>
+            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">8 PM</span>
+            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">Your timezone</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="order-1 lg:order-2">
+    <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Newsletter</p>
+    <h1 class="font-display text-3xl font-bold tracking-tight mb-2">Subscribe</h1>
+    <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-8">
+      Enter your email — no password, no account. Unsubscribe anytime.
+    </p>
+
+    <form method="POST" action="{{ url_for('subscriptions.subscribe') }}"
+          class="space-y-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur p-6 sm:p-8 shadow-xl shadow-zinc-900/5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label for="email" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Email address</label>
+        <input type="email" id="email" name="email" required autofocus placeholder="you@example.com"
+               class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+      </div>
+
+      <div class="space-y-2.5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery schedule</p>
+        <label class="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+          <input type="checkbox" name="morning_enabled" checked class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+          <div>
+            <span class="text-sm font-medium block">Morning digest</span>
+            <span class="text-xs text-zinc-500">6:00 AM in your timezone</span>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+          <input type="checkbox" name="evening_enabled" class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+          <div>
+            <span class="text-sm font-medium block">Evening digest</span>
+            <span class="text-xs text-zinc-500">8:00 PM in your timezone</span>
+          </div>
+        </label>
+      </div>
+
+      <div>
+        <label for="timezone" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Timezone</label>
+        <input type="text" id="timezone" name="timezone" value="America/Los_Angeles" placeholder="America/Los_Angeles"
+               class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+        <p class="text-xs text-zinc-400 mt-1.5">IANA timezone, e.g. America/New_York</p>
+      </div>
+
+      <button type="submit"
+              class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
+                     text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-lg shadow-indigo-600/25
+                     transition-all active:scale-[0.98]">
+        Subscribe to daily AI news
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

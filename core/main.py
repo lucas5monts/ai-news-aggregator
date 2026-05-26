@@ -1,9 +1,9 @@
-"""AI News Aggregator — entrypoint.
+"""AI News Aggregator — CLI entrypoint.
 
 Usage:
-    python -m src.main morning         # last 24h, print to terminal
-    python -m src.main morning --send  # same + email digest via Gmail
-    python -m src.main evening         # last 12h
+    python -m core.main morning         # last 24h, print to terminal
+    python -m core.main morning --send  # same + email digest via Gmail
+    python -m core.main evening         # last 12h
 """
 from __future__ import annotations
 

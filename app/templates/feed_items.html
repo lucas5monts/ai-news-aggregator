@@ -1,48 +1,53 @@
+{% from "_macros.html" import story_card, category_badge %}
+
 {% if not stories %}
-<div class="text-center py-16 text-gray-400">
-  <p class="text-4xl mb-4">📭</p>
-  <p class="text-lg font-medium">No stories right now.</p>
-  <p class="text-sm mt-1">Try hitting Refresh, or check your source settings.</p>
+<div class="text-center py-24 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+  <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/20">
+    <i data-lucide="inbox" class="w-8 h-8 text-white"></i>
+  </div>
+  <p class="text-lg font-semibold text-zinc-800 dark:text-zinc-200">No stories right now</p>
+  <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">Hit refresh to pull the latest from your RSS sources.</p>
 </div>
 {% else %}
 
-<p class="text-xs text-gray-400 mb-4">
-  {{ stories | length }} stories · scanned {{ total_scanned }} entries
-</p>
+<div class="flex flex-wrap items-center gap-3 mb-8">
+  <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300 shadow-sm">
+    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+    {{ stories | length }} stories live
+  </div>
+  <span class="text-xs text-zinc-500 dark:text-zinc-400">scanned {{ total_scanned }} RSS entries</span>
+</div>
 
+{# Featured top story #}
+{% if stories | length >= 1 %}
+<div class="mb-10">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-3">Top story</p>
+  {{ story_card(stories[0], featured=true) }}
+</div>
+{% endif %}
+
+{# Category sections #}
 {% set seen_cats = [] %}
-{% for s in stories %}{% if s.source_category not in seen_cats %}{% set _ = seen_cats.append(s.source_category) %}{% endif %}{% endfor %}
+{% for s in stories[1:] %}{% if s.source_category not in seen_cats %}{% set _ = seen_cats.append(s.source_category) %}{% endif %}{% endfor %}
 
 {% for cat in seen_cats %}
-  {% set cat_stories = stories | selectattr("source_category", "equalto", cat) | list %}
-  <div class="mb-8">
-    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">
-      {{ cat }} &nbsp;({{ cat_stories | length }})
-    </h2>
+  {% set cat_stories = stories[1:] | selectattr("source_category", "equalto", cat) | list %}
+  {% if cat_stories %}
+  <section class="mb-10">
+    <div class="flex items-center gap-3 mb-5">
+      {{ category_badge(cat) }}
+      <h2 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200 capitalize">{{ cat }}</h2>
+      <div class="flex-1 h-px bg-gradient-to-r from-zinc-200 dark:from-zinc-800 to-transparent"></div>
+      <span class="text-xs text-zinc-400">{{ cat_stories | length }}</span>
+    </div>
 
-    <div class="space-y-5">
+    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
       {% for s in cat_stories %}
-      <article class="bg-white rounded-lg border border-gray-100 p-4 hover:border-gray-200 transition-colors">
-        <h3 class="text-base font-semibold leading-snug mb-1">
-          <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer"
-             class="text-blue-700 hover:text-blue-900 hover:underline">
-            {{ s.title }}
-          </a>
-        </h3>
-        <p class="text-xs text-gray-400 mb-2">
-          {{ s.source_name }}
-          {% if s.alt_sources %}&nbsp;·&nbsp;also: {{ s.alt_sources | join(', ') }}{% endif %}
-          &nbsp;·&nbsp;
-          {% set delta = (now_utc - s.published_at).total_seconds() if now_utc is defined else 0 %}
-          {{ s.published_at.strftime('%b %-d, %H:%M UTC') }}
-        </p>
-        {% if s.summary %}
-        <p class="text-sm text-gray-600 leading-relaxed">{{ s.summary }}</p>
-        {% endif %}
-      </article>
+        {{ story_card(s) }}
       {% endfor %}
     </div>
-  </div>
+  </section>
+  {% endif %}
 {% endfor %}
 
 {% endif %}

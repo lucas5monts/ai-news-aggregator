@@ -32,6 +32,7 @@ class Story:
     source_category: str
     published_at: datetime
     score: float = 0.0
+    image_url: str | None = None
     # Phase 2: alt_sources collects other sources covering the same story
     alt_sources: list[str] = field(default_factory=list)
 
@@ -93,6 +94,33 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def _extract_image(entry: dict[str, Any]) -> str | None:
+    """Best-effort thumbnail from RSS media tags or embedded HTML."""
+    for thumb in entry.get("media_thumbnail") or []:
+        url = thumb.get("url")
+        if url:
+            return url
+
+    for media in entry.get("media_content") or []:
+        url = media.get("url")
+        medium = media.get("medium", "")
+        mtype = media.get("type", "")
+        if url and (medium == "image" or str(mtype).startswith("image/")):
+            return url
+
+    for enc in entry.get("enclosures") or []:
+        href = enc.get("href") or enc.get("url")
+        if href and str(enc.get("type", "")).startswith("image/"):
+            return href
+
+    html = entry.get("summary") or entry.get("description") or ""
+    match = re.search(r"""<img[^>]+src=["']([^"']+)["']""", html, re.I)
+    if match:
+        return match.group(1)
+
+    return None
+
+
 # --- main pipeline -----------------------------------------------------------
 
 
@@ -114,6 +142,7 @@ def normalize(raw: list[RawEntry], max_summary_chars: int = 280) -> list[Story]:
                 source_name=r.source_name,
                 source_category=r.source_category,
                 published_at=_parse_date(e),
+                image_url=_extract_image(e),
             )
         )
     return out

@@ -1,6 +1,6 @@
 # AI News Dashboard
 
-A self-hosted, multi-user AI news aggregator with a web dashboard, magic-link auth, and an in-process digest scheduler. Fetches from curated RSS feeds (OpenAI, Hugging Face, TechCrunch, DeepMind, Wired, MIT Tech Review), runs them through a normalize → filter → rank → dedupe pipeline, and emails you a formatted digest at 6 AM and 8 PM in your timezone.
+A self-hosted AI news aggregator with a public web dashboard and email newsletter. Fetches from curated RSS feeds (OpenAI, Hugging Face, TechCrunch, DeepMind, Wired, MIT Tech Review), runs them through a normalize → filter → rank → dedupe pipeline, and emails subscribers a formatted digest at 6 AM and 8 PM in their timezone.
 
 ![dashboard](docs/screenshot.png)
 
@@ -9,72 +9,54 @@ A self-hosted, multi-user AI news aggregator with a web dashboard, magic-link au
 ## Quickstart (local dev)
 
 ```bash
-# Clone and set up
 git clone https://github.com/<you>/ai-news-aggregator.git
 cd ai-news-aggregator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Configure credentials
 cp .env.example .env
-# Edit .env — fill in GMAIL_ADDRESS, GMAIL_APP_PASSWORD, TO_ADDRESS
+# Edit .env — fill in GMAIL_ADDRESS, GMAIL_APP_PASSWORD (needed for sending digests)
 
-# Start the dashboard
-python3 run.py
+PORT=8080 python3 run.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000).
+Open **http://127.0.0.1:8080** (use `127.0.0.1`, not `localhost` — macOS AirPlay uses port 5000).
 
-On first visit you'll be prompted to sign in. Enter your email — a magic link will be sent to your inbox. Click it and you're in.
+No login required. Browse the feed, then subscribe at `/subscribe` to get the daily digest by email.
 
 ---
 
-## CLI (still works)
+## CLI
 
 ```bash
-# Morning digest — print to terminal
-python3 -m core.main morning
-
-# Morning digest — also email it
-python3 -m core.main morning --send
-
-# Evening edition
-python3 -m core.main evening --send
+python3 -m core.main morning          # print digest to terminal
+python3 -m core.main morning --send   # email it (uses TO_ADDRESS in .env)
+python3 -m core.main evening --send   # evening edition
 ```
 
 ---
 
-## Features
+## Web pages
 
-### Auth — magic links
-No passwords. Enter your email, receive a one-time sign-in link (valid 15 minutes). Anyone who signs up gets their own account with independent source and schedule preferences.
-
-### Web dashboard
 | Page | What it does |
 |------|-------------|
-| `/feed` | Live story feed for your enabled sources, with an HTMX refresh button |
-| `/settings` | Toggle sources, enable/disable morning + evening digest, set timezone |
-| `/preview` | See exactly what the next email will look like (in an iframe) |
-| `/archive` | Browse every digest you've been sent |
+| `/feed` | Live story feed with images, HTMX refresh |
+| `/preview` | See exactly what the email digest looks like |
+| `/subscribe` | Enter email + schedule to receive digests |
 
-### In-process scheduler (APScheduler)
-- **Hourly** — refreshes the global story cache from all sources
-- **Every minute** — checks if it's 6:00 AM or 8:00 PM in each user's timezone, and sends their personalized digest if so
-- Idempotent: won't double-send if the server restarts mid-minute
-- Disable with `ENABLE_SCHEDULER=0` if you want a separate cron process
+---
+
+## Scheduler (APScheduler)
+
+- **Hourly** — refreshes the global story cache
+- **Every minute** — sends morning (6 AM) / evening (8 PM) digests to subscribers in their timezone
+- Disable with `ENABLE_SCHEDULER=0`
 
 ---
 
 ## Deploying to production
 
-See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions for Render and Fly.io.
-
-Short version:
-1. Push to GitHub
-2. Create a Render Web Service (auto-detects Dockerfile)
-3. Add environment variables (see `.env.example`)
-4. Add a Render Postgres database, paste the URL into `DATABASE_URL`
-5. Deploy
+See **[DEPLOY.md](DEPLOY.md)** for Render and Fly.io instructions.
 
 ---
 
@@ -82,23 +64,19 @@ Short version:
 
 ```
 ai-news-aggregator/
-├── core/                  ← pipeline (fetch, normalize, rank, dedupe, render, deliver)
+├── core/                  ← pipeline (fetch, normalize, rank, dedupe, render, deliver, images)
 │   └── templates/digest.html.j2
 ├── app/                   ← Flask web layer
-│   ├── __init__.py        ← create_app() factory
-│   ├── models.py          ← SQLAlchemy: User, MagicLink, UserSettings, UserSource, Digest
-│   ├── auth.py            ← magic-link login flow + Flask-Login
-│   ├── routes.py          ← all web routes
+│   ├── subscriptions.py   ← newsletter signup (no login)
+│   ├── routes.py          ← feed + preview routes
 │   ├── scheduler.py       ← APScheduler jobs
 │   └── templates/         ← Jinja2 + Tailwind (CDN) + HTMX (CDN)
 ├── config/
 │   ├── sources.yaml       ← RSS source list
 │   └── settings.yaml      ← global defaults
-├── tests/                 ← pytest suite
-├── run.py                 ← `python3 run.py` dev server
-├── Dockerfile             ← multi-stage Python 3.11 image
-├── gunicorn_conf.py
-├── .env.example
+├── tests/
+├── run.py                 ← dev server
+├── Dockerfile
 └── DEPLOY.md
 ```
 
@@ -110,9 +88,9 @@ ai-news-aggregator/
 |----------|---------|-------------|
 | `GMAIL_ADDRESS` | — | Gmail account for sending |
 | `GMAIL_APP_PASSWORD` | — | 16-char Gmail App Password |
-| `TO_ADDRESS` | — | Recipient email (CLI mode) |
+| `TO_ADDRESS` | — | Recipient email (CLI mode only) |
 | `SECRET_KEY` | `dev-secret-change-me` | Flask session secret — change in prod! |
 | `DATABASE_URL` | `sqlite:///data.db` | SQLite or `postgres://...` |
 | `FLASK_ENV` | `development` | Set to `production` in prod |
 | `ENABLE_SCHEDULER` | `1` | Set to `0` to disable APScheduler |
-| `PORT` | `5000` / `8080` | Server port (Render/Fly inject this) |
+| `PORT` | `5000` | Server port (use `8080` locally on macOS) |

@@ -1,10 +1,9 @@
 """SQLAlchemy models for the AI News Dashboard.
 
 Tables:
-    users           — registered users (multi-user capable)
-    magic_links     — one-time login tokens (15-minute TTL)
+    users           — newsletter subscribers
     user_settings   — per-user digest preferences
-    user_sources    — per-user RSS source toggles
+    user_sources    — per-user RSS source toggles (used by scheduler)
     digests         — log of every sent digest (with rendered HTML blob)
     digest_stories  — join table: which stories were in each digest
 
@@ -15,7 +14,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -25,14 +23,13 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class User(UserMixin, db.Model):
+class User(db.Model):
     __tablename__ = "users"
     __allow_unmapped__ = True
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(256), unique=True, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
-    last_login_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # relationships
     settings = db.relationship(
@@ -45,25 +42,8 @@ class User(UserMixin, db.Model):
         "Digest", back_populates="user", cascade="all, delete-orphan"
     )
 
-    def get_id(self) -> str:  # Flask-Login requires str
-        return str(self.id)
-
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"
-
-
-class MagicLink(db.Model):
-    __tablename__ = "magic_links"
-    __allow_unmapped__ = True
-
-    token = db.Column(db.String(512), primary_key=True)
-    email = db.Column(db.String(256), nullable=False, index=True)
-    created_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
-    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
-    used_at = db.Column(db.DateTime(timezone=True), nullable=True)
-
-    def __repr__(self) -> str:
-        return f"<MagicLink email={self.email!r} used={self.used_at is not None}>"
 
 
 class UserSettings(db.Model):

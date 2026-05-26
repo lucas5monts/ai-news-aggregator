@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
-from app.models import Digest, DigestStory, MagicLink, User, UserSettings, UserSource, db
+from app.models import Digest, DigestStory, User, UserSettings, UserSource, db
 
 
 def _make_app():
@@ -37,7 +37,7 @@ class TestModels(unittest.TestCase):
         from sqlalchemy import inspect
         inspector = inspect(db.engine)
         tables = set(inspector.get_table_names())
-        for expected in ("users", "magic_links", "user_settings", "user_sources",
+        for expected in ("users", "user_settings", "user_sources",
                          "digests", "digest_stories"):
             self.assertIn(expected, tables, f"missing table: {expected}")
 
@@ -117,9 +117,9 @@ class TestModels(unittest.TestCase):
         self.assertEqual(loaded.story_count, 3)
         self.assertEqual(len(loaded.stories), 3)
 
-    def test_dev_user_seeding_via_auth(self):
+    def test_dev_user_seeding(self):
         """_seed_user_defaults creates UserSettings + UserSource rows."""
-        from app.auth import _seed_user_defaults
+        from app.subscriptions import _seed_user_defaults
 
         u = User(email="seed@example.com")
         db.session.add(u)
@@ -133,23 +133,6 @@ class TestModels(unittest.TestCase):
 
         sources = db.session.query(UserSource).filter_by(user_id=u.id).all()
         self.assertGreater(len(sources), 0)
-
-    def test_magic_link_model(self):
-        from datetime import datetime, timedelta, timezone
-        now = datetime.now(timezone.utc)
-        ml = MagicLink(
-            token="abc.token.xyz",
-            email="test@example.com",
-            created_at=now,
-            expires_at=now + timedelta(minutes=15),
-        )
-        db.session.add(ml)
-        db.session.commit()
-
-        fetched = db.session.get(MagicLink, "abc.token.xyz")
-        self.assertIsNotNone(fetched)
-        self.assertIsNone(fetched.used_at)
-        self.assertEqual(fetched.email, "test@example.com")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,7 @@
 # Deployment Guide
 
-> **Security note — CSRF protection:** This app does not currently implement
-> CSRF tokens on state-changing forms. For a personal single-user install this
-> is an acceptable risk, but before exposing it to untrusted users on the public
-> internet you should add Flask-WTF (or a lightweight CSRF middleware). This is
-> the #1 known gap.
+> **Security note — CSRF protection:** State-changing forms (subscribe, feed refresh)
+> are protected by Flask-WTF CSRF tokens.
 
 ## Quick deploy to Render
 
@@ -52,10 +49,10 @@ Render is the simplest path: it detects your Dockerfile automatically.
    - Click **Deploy** (or push a new commit — Render auto-deploys on push)
    - First deploy takes ~2–3 minutes while building the Docker image
 
-6. **Sign up**
-   - Open `https://<your-service>.onrender.com/login`
-   - Enter your email, click the magic link in your inbox
-   - You're in — configure sources in /settings
+6. **Subscribe**
+   - Open `https://<your-service>.onrender.com/feed`
+   - Go to `/subscribe`, enter your email and delivery preferences
+   - Digests arrive at 6 AM / 8 PM in your chosen timezone
 
 ---
 

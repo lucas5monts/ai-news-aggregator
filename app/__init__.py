@@ -44,9 +44,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     from .models import db
     db.init_app(app)
 
-    from .auth import init_login_manager
-    init_login_manager(app)
-
     # CSRF — must come after test_config is applied so WTF_CSRF_ENABLED=False
     # in test fixtures is already in app.config before CSRFProtect initialises.
     from flask_wtf.csrf import CSRFProtect
@@ -57,21 +54,18 @@ def create_app(test_config: dict | None = None) -> Flask:
     csrf.init_app(app)
 
     # --- Blueprints -------------------------------------------------------
-    from .auth import auth_bp
+    from .subscriptions import subscriptions_bp
     from .routes import main_bp
-    app.register_blueprint(auth_bp)
+    app.register_blueprint(subscriptions_bp)
     app.register_blueprint(main_bp)
+
+    from .template_filters import time_ago
+    app.jinja_env.filters["time_ago"] = time_ago
 
     # --- DB init ----------------------------------------------------------
     with app.app_context():
         db.create_all()
         _run_migrations(db)
-
-    # --- Dev escape hatch -------------------------------------------------
-    # When FLASK_ENV=development and exactly one user exists, auto-login them
-    # via a before_request hook so local dev doesn't require magic-link email.
-    if flask_env == "development" and not test_config:
-        _register_dev_autologin(app)
 
     # --- Scheduler --------------------------------------------------------
     from .scheduler import init_scheduler
@@ -91,7 +85,6 @@ def _migrate_drop_sent_at(db) -> None:
 
     SQLite does not support DROP COLUMN before 3.35.0; we handle both cases.
     """
-    import sqlite3
     from sqlalchemy import text
 
     try:
@@ -135,24 +128,3 @@ def _migrate_drop_sent_at(db) -> None:
         # Non-SQLite DB or fresh install — no-op
         log.debug("migration _migrate_drop_sent_at: %s (skipping)", exc)
 
-
-def _register_dev_autologin(app: Flask) -> None:
-    """Auto-login the first/only user in development mode (no magic link needed)."""
-    from flask import g, request
-    from flask_login import current_user, login_user
-
-    @app.before_request
-    def _dev_autologin():
-        # Skip for auth routes and static files
-        if request.endpoint in ("auth.login", "auth.consume_magic_link", "auth.logout"):
-            return
-        if request.endpoint and request.endpoint.startswith("static"):
-            return
-        if current_user.is_authenticated:
-            return
-
-        from .models import User, db
-        users = db.session.query(User).all()
-        if len(users) == 1:
-            login_user(users[0], remember=True)
-            log.debug("dev autologin: user_id=%s", users[0].id)

@@ -1,34 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Preview — AI News Dashboard{% endblock %}
+{% block title %}Preview — AI News{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <h1 class="text-xl font-bold">Email Preview</h1>
-  <div class="flex items-center gap-3">
-    <span class="text-sm text-gray-500">{{ story_count }} stories</span>
-    <form method="POST" action="{{ url_for('main.preview_send') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit"
-              class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium
-                     py-1.5 px-4 rounded-md transition-colors"
-              onclick="return confirm('Send test digest to your email?')">
-        ✉ Send to me
-      </button>
-    </form>
+<div class="mb-8">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Email template</p>
+  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+    <h1 class="font-display text-3xl font-bold tracking-tight">Digest Preview</h1>
+    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+      <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+      {{ story_count }} stories
+    </span>
   </div>
+  <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-2">This is exactly what subscribers receive in their inbox.</p>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+<div class="rounded-2xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 shadow-2xl shadow-zinc-900/5 bg-white dark:bg-zinc-900">
+  <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-red-400"></span>
+    <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+    <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+    <span class="text-xs text-zinc-500 ml-2 font-medium">Inbox preview</span>
+  </div>
   <iframe
     srcdoc="{{ html_content | e }}"
-    class="w-full border-0"
+    class="w-full border-0 bg-white"
     style="height: 75vh;"
     title="Email preview"
     sandbox="allow-same-origin">
   </iframe>
 </div>
-
-<p class="text-xs text-gray-400 mt-2 text-center">
-  This is how the email will look in your inbox. Styles are self-contained.
-</p>
 {% endblock %}
