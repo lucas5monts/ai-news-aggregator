@@ -32,6 +32,14 @@ class TestParseOgImage(unittest.TestCase):
         url = parse_og_image(html, "https://example.com/blog/post")
         self.assertEqual(url, "https://example.com/images/story.png")
 
+    def test_html_entities_decoded(self):
+        html = (
+            '<meta property="og:image" '
+            'content="https://cdn.example.com/hero.png?w=1600&amp;h=900&amp;fit=fill">'
+        )
+        url = parse_og_image(html, "https://example.com/article")
+        self.assertEqual(url, "https://cdn.example.com/hero.png?w=1600&h=900&fit=fill")
+
     def test_no_image(self):
         self.assertIsNone(parse_og_image("<html><head></head></html>", "https://x.com"))
 

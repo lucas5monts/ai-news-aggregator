@@ -59,8 +59,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(subscriptions_bp)
     app.register_blueprint(main_bp)
 
-    from .template_filters import time_ago
+    from .template_filters import card_image, time_ago
     app.jinja_env.filters["time_ago"] = time_ago
+    app.jinja_env.filters["card_image"] = card_image
 
     # --- DB init ----------------------------------------------------------
     with app.app_context():

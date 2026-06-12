@@ -25,16 +25,17 @@
 {% endmacro %}
 
 {% macro story_image(story, aspect_class='aspect-[16/10]', icon_size='w-10 h-10') %}
+  {% set thumb = story.image_url | card_image %}
   <div class="{{ aspect_class }} relative overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-    {% if story.image_url %}
-    <img src="{{ story.image_url }}"
+    {% if thumb %}
+    <img src="{{ thumb }}"
          alt=""
-         loading="lazy"
+         loading="eager"
          referrerpolicy="no-referrer"
          class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
     {% endif %}
-    <div class="absolute inset-0 {% if story.image_url %}hidden{% else %}flex{% endif %} items-center justify-center {{ source_gradient(story.source_name) }}">
+    <div class="absolute inset-0 {% if thumb %}hidden{% else %}flex{% endif %} items-center justify-center {{ source_gradient(story.source_name) }}">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_50%)]"></div>
       <i data-lucide="sparkles" class="{{ icon_size }} text-white/90 relative drop-shadow"></i>
     </div>

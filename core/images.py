@@ -6,6 +6,7 @@ so repeat feed loads stay fast.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import re
 import time
@@ -64,7 +65,8 @@ def _cache_set(url: str, image: str | None) -> None:
 
 
 def _normalize_image_url(raw: str, page_url: str) -> str | None:
-    raw = raw.strip()
+    # og:image content often uses HTML entities (&amp;) — decode before use.
+    raw = html.unescape(raw.strip())
     if not raw or raw.startswith("data:"):
         return None
     absolute = urljoin(page_url, raw)
