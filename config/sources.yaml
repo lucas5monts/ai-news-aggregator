@@ -20,7 +20,7 @@ sources:
     enabled: true
 
   - name: AP News
-    url: https://feedx.net/rss/ap.xml
+    url: https://apnews.com/apf-topnews
     category: world
     weight: 1.3
     enabled: true
@@ -113,22 +113,22 @@ sources:
     enabled: true
 
   # ----- Business -----
-  - name: Bloomberg Technology
-    url: https://feeds.bloomberg.com/technology/news.rss
+  - name: CNBC
+    url: https://www.cnbc.com/id/100003114/device/rss/rss.html
     category: business
     weight: 1.2
     enabled: true
 
-  - name: Financial Times Tech
-    url: https://www.ft.com/technology?format=rss
-    category: business
-    weight: 1.1
-    enabled: true
-
-  - name: Fortune
-    url: https://fortune.com/feed/
+  - name: Yahoo Finance
+    url: https://finance.yahoo.com/news/rssindex
     category: business
     weight: 1.0
+    enabled: true
+
+  - name: Reuters Business
+    url: https://feeds.reuters.com/reuters/businessNews
+    category: business
+    weight: 1.2
     enabled: true
 
   # ----- Science -----
@@ -150,6 +150,12 @@ sources:
     weight: 1.0
     enabled: true
 
+  - name: NASA News
+    url: https://www.nasa.gov/rss/dyn/breaking_news.rss
+    category: science
+    weight: 1.0
+    enabled: true
+
   # ----- Politics -----
   - name: Politico
     url: https://www.politico.com/rss/politicopicks.xml
@@ -163,11 +169,17 @@ sources:
     weight: 1.0
     enabled: true
 
+  - name: Reuters Politics
+    url: https://feeds.reuters.com/Reuters/PoliticsNews
+    category: politics
+    weight: 1.1
+    enabled: true
+
   - name: FiveThirtyEight
     url: https://fivethirtyeight.com/all/feed
     category: politics
     weight: 1.0
-    enabled: true
+    enabled: false
 
   # ----- Sports -----
   - name: ESPN Top Headlines
@@ -178,6 +190,12 @@ sources:
 
   - name: BBC Sport
     url: https://feeds.bbci.co.uk/sport/rss.xml
+    category: sports
+    weight: 1.0
+    enabled: true
+
+  - name: Reuters Sports
+    url: https://feeds.reuters.com/reuters/sportsNews
     category: sports
     weight: 1.0
     enabled: true

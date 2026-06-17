@@ -237,6 +237,28 @@ def cap(stories: list[Story], n: int) -> list[Story]:
     return stories[:n]
 
 
+# Titles matching these patterns are promotional junk (coupons, deals, etc.)
+# and should never appear on a news feed.
+_JUNK_RE = re.compile(
+    r"\b("
+    r"coupon|promo\s*code|discount\s*code|voucher|"
+    r"\d+%\s*off|save\s+\$?\d+|deal\s+of\s+the|"
+    r"best\s+deals?|shop\s+now|buy\s+now|limited\s+offer|"
+    r"free\s+shipping|cashback|rebate|sale\s+ends"
+    r")\b",
+    re.I,
+)
+
+
+def filter_junk(stories: list[Story]) -> list[Story]:
+    """Drop promotional / coupon stories based on title patterns."""
+    kept = [s for s in stories if not _JUNK_RE.search(s.title)]
+    dropped = len(stories) - len(kept)
+    if dropped:
+        log.info("filter_junk: dropped %d promotional stories", dropped)
+    return kept
+
+
 _STOPWORDS = frozenset({"the", "a", "is", "for", "to"})
 _DEDUPE_THRESHOLD = 90
 

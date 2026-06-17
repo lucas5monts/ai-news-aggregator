@@ -98,6 +98,7 @@ def _run_pipeline_global(category: str | None = None) -> tuple[list, int, dict]:
 
     stories = pipeline.normalize(raw, max_summary_chars=max_summary_chars)
     stories = pipeline.filter_relevant(stories, [], window_hours)
+    stories = pipeline.filter_junk(stories)
 
     source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in all_sources}
     stories = pipeline.rank(stories, source_weights)

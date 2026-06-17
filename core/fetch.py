@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 
 # How long to wait per feed before giving up
 FETCH_TIMEOUT_SECONDS = 15
+# Maximum bytes to read from a feed before parsing. RSS feeds should be small;
+# this prevents a bad source from forcing the process to hold a huge response.
+MAX_FEED_BYTES = 2_000_000
 # Pretend to be a real browser so we don't get blocked by aggressive WAFs
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) "
@@ -44,14 +47,20 @@ async def _fetch_one(
     url = src["url"]
     started = time.monotonic()
     try:
-        resp = await client.get(url, follow_redirects=True)
-        resp.raise_for_status()
+        async with client.stream("GET", url, follow_redirects=True) as resp:
+            resp.raise_for_status()
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_FEED_BYTES:
+                    log.warning("feed too large for %s (%s), skipping", name, url)
+                    return []
     except (httpx.HTTPError, httpx.TimeoutException) as e:
         log.warning("fetch failed for %s (%s): %s", name, url, e)
         return []
 
     # feedparser is sync; parse from the already-downloaded bytes
-    parsed = feedparser.parse(resp.content)
+    parsed = feedparser.parse(bytes(body))
     if parsed.bozo and not parsed.entries:
         log.warning("parse failed for %s: %s", name, parsed.bozo_exception)
         return []

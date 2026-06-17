@@ -11,7 +11,7 @@
   </div>
   <div class="min-w-0">
     <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-      Personalized by Claude
+      Personalized by AI
     </p>
     <p class="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">
       Scored {{ ai_meta.total_scored }} stories against your interests
@@ -38,7 +38,7 @@
     <p class="text-sm text-zinc-600 dark:text-zinc-400">
       This is the general feed.
       <span class="font-medium text-zinc-800 dark:text-zinc-200">Add your interests</span>
-      and Claude will personalize it for you.
+      and AI will help pick stories for you.
     </p>
   </div>
   <a href="{{ url_for('subscriptions.subscribe') }}"
@@ -104,7 +104,7 @@
 {% endif %}
 
 {# Leaderboard ad #}
-{{ ad_slot('min-h-[90px] sm:min-h-[120px]', 'Advertisement', 'mb-12') }}
+{{ ad_slot('min-h-[90px] sm:min-h-[120px]', 'Advertisement', 'mb-12', 'signal') }}
 
 {# Main content + sidebar — news-portal layout #}
 {% set rest = stories[11:] %}
@@ -134,7 +134,7 @@
 
       {# In-feed ad after the first category block #}
       {% if loop.first %}
-        {{ ad_slot('min-h-[120px]', 'Advertisement') }}
+        {{ ad_slot('min-h-[120px]', 'Advertisement', '', 'atlas') }}
       {% endif %}
       {% endif %}
     {% endfor %}
@@ -162,7 +162,7 @@
     </div>
 
     {# Sidebar ad #}
-    {{ ad_slot('min-h-[280px]', 'Advertisement') }}
+    {{ ad_slot('min-h-[280px]', 'Advertisement', '', 'lumen') }}
 
     {% if topic_counts %}
     <div class="rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-6">

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     (function() {
       var stored = localStorage.getItem('theme');
       if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -19,7 +19,7 @@
     })();
   </script>
 
-  <script>tailwind.config = {
+  <script nonce="{{ csp_nonce() }}">tailwind.config = {
     darkMode: 'class',
     theme: {
       extend: {
@@ -29,17 +29,24 @@
       }
     }
   }</script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script nonce="{{ csp_nonce() }}" src="https://cdn.tailwindcss.com"></script>
+  <script nonce="{{ csp_nonce() }}" src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script nonce="{{ csp_nonce() }}" src="https://unpkg.com/lucide@latest"></script>
 
-  <script>
-    document.body.addEventListener('htmx:configRequest', (e) => {
+  <script nonce="{{ csp_nonce() }}">
+    document.addEventListener('htmx:configRequest', (e) => {
       if (e.detail.verb !== 'get') {
         e.detail.headers['X-CSRFToken'] =
           document.querySelector('meta[name=csrf-token]').content;
       }
     });
+    document.addEventListener('error', function(e) {
+      var img = e.target;
+      if (!img || img.tagName !== 'IMG' || !img.dataset.fallback) return;
+      if (img.src !== img.dataset.fallback) {
+        img.src = img.dataset.fallback;
+      }
+    }, true);
   </script>
 
   <style>
@@ -323,7 +330,7 @@
     </div>
   </footer>
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     lucide.createIcons();
     document.body.addEventListener('htmx:afterSwap', () => lucide.createIcons());
 

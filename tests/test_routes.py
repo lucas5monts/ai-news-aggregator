@@ -83,7 +83,7 @@ class TestRoutesPublic(unittest.TestCase):
         }
         with patch("app.routes._run_pipeline_global", return_value=([story], 100, ai_meta)):
             resp = self.client.get("/feed")
-        self.assertIn(b"Personalized by Claude", resp.data)
+        self.assertIn(b"Personalized by AI", resp.data)
         self.assertIn(b"NBA", resp.data)
 
     def test_preview_returns_200(self):

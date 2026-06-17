@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -53,7 +54,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB
 
     app.config["FLASK_ENV"] = flask_env
-    if flask_env == "production":
+    secure_cookies = (
+        flask_env == "production"
+        or os.environ.get("SESSION_COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
+        or os.environ.get("APP_BASE_URL", "").startswith("https://")
+    )
+    if secure_cookies:
         app.config["SESSION_COOKIE_SECURE"] = True
         app.config["SESSION_COOKIE_HTTPONLY"] = True
         app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -103,22 +109,36 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.filters["placeholder_image"] = placeholder_image
 
     # --- Security headers -------------------------------------------------
+    @app.before_request
+    def set_csp_nonce():
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.context_processor
+    def inject_security_context():
+        return {"csp_nonce": lambda: getattr(g, "csp_nonce", "")}
+
     @app.after_request
     def set_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        if flask_env == "production":
+        if secure_cookies:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        # CSP: allow scripts only from known CDNs (tailwind, htmx, lucide, fonts)
-        response.headers["Content-Security-Policy"] = (
+        csp = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; "
+            f"script-src 'self' 'nonce-{getattr(g, 'csp_nonce', '')}' https://cdn.tailwindcss.com https://unpkg.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
-            "frame-src 'none';"
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'self'; "
+            "form-action 'self'; "
+            "frame-src 'none'; "
         )
+        if secure_cookies:
+            csp += "upgrade-insecure-requests; "
+        response.headers["Content-Security-Policy"] = csp
         return response
 
     # --- DB init ----------------------------------------------------------
@@ -321,4 +341,3 @@ def _migrate_drop_sent_at(db) -> None:
     except Exception as exc:
         # Non-SQLite DB or fresh install — no-op
         log.debug("migration _migrate_drop_sent_at: %s (skipping)", exc)
-

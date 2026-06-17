@@ -57,7 +57,7 @@
   {% include "feed_items.html" %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
   (function () {
     var feedPersonalized = {{ (ai_meta.personalized if ai_meta else false) | tojson }};
     var refreshMessages = feedPersonalized

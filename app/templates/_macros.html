@@ -42,8 +42,7 @@
          loading="eager"
          referrerpolicy="no-referrer"
          data-fallback="{{ story.source_name | placeholder_image(story.source_category) }}"
-         class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-         onerror="if(this.src!==this.dataset.fallback){this.onerror=null;this.src=this.dataset.fallback;}">
+         class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
     <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 pointer-events-none"></div>
   </div>
 {% endmacro %}
@@ -140,8 +139,7 @@
            loading="eager"
            referrerpolicy="no-referrer"
            data-fallback="{{ story.source_name | placeholder_image(story.source_category) }}"
-           class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-           onerror="if(this.src!==this.dataset.fallback){this.onerror=null;this.src=this.dataset.fallback;}">
+           class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
       <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none"></div>
       <div class="relative mt-auto p-6">
         <div class="flex items-center gap-2 mb-3 flex-wrap">
@@ -167,15 +165,54 @@
   </article>
 {% endmacro %}
 
-{# Ad placeholder. Swap the inner markup for real ad/embed code when ready. #}
-{% macro ad_slot(min_height='min-h-[250px]', label='Advertisement', extra='') %}
+{# Fictional filler ads for layout/testing. Swap for real ad/embed code when ready. #}
+{% macro ad_slot(min_height='min-h-[250px]', label='Advertisement', extra='', campaign='signal') %}
+  {% set ads = {
+    'signal': {
+      'eyebrow': 'Sponsored',
+      'brand': 'SignalStack',
+      'headline': 'Turn market noise into a morning brief.',
+      'body': 'A fictional research desk for teams that want cleaner signals before standup.',
+      'cta': 'See sample brief',
+      'icon': 'radio'
+    },
+    'atlas': {
+      'eyebrow': 'Partner message',
+      'brand': 'Atlas Notes',
+      'headline': 'Meeting notes that remember the follow-up.',
+      'body': 'Imaginary AI notes for busy operators, founders, and very tired calendars.',
+      'cta': 'Try the mock demo',
+      'icon': 'notebook-tabs'
+    },
+    'lumen': {
+      'eyebrow': 'Featured',
+      'brand': 'Lumen Desk',
+      'headline': 'A calmer command center for your day.',
+      'body': 'Fictional dashboards, tidy alerts, and fewer tabs before your second coffee.',
+      'cta': 'Preview workspace',
+      'icon': 'panel-top'
+    }
+  } %}
+  {% set ad = ads.get(campaign, ads.signal) %}
   <div class="{{ extra }}">
     <p class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-2 text-center">{{ label }}</p>
-    <div class="{{ min_height }} flex items-center justify-center rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-900/40 text-zinc-400 dark:text-zinc-600">
-      {# AD SLOT — paste ad network / embed code here #}
-      <div class="flex flex-col items-center gap-1.5 text-center px-4">
-        <i data-lucide="megaphone" class="w-5 h-5"></i>
-        <span class="text-xs">Ad space available</span>
+    <div class="{{ min_height }} relative overflow-hidden rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+      <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-emerald-500/10"></div>
+      <div class="relative h-full min-h-[inherit] flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6">
+        <div class="flex items-start gap-4 min-w-0">
+          <div class="w-11 h-11 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center shrink-0">
+            <i data-lucide="{{ ad.icon }}" class="w-5 h-5"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">{{ ad.eyebrow }} · {{ ad.brand }}</p>
+            <p class="font-display font-bold text-base sm:text-lg leading-snug text-zinc-900 dark:text-white mt-1">{{ ad.headline }}</p>
+            <p class="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mt-1.5 max-w-xl">{{ ad.body }}</p>
+          </div>
+        </div>
+        <span class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 shrink-0">
+          {{ ad.cta }}
+          <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+        </span>
       </div>
     </div>
   </div>

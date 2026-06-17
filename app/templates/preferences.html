@@ -120,7 +120,7 @@
     </button>
   </form>
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     (function () {
       ['morning', 'evening'].forEach(function (slot) {
         var cb = document.getElementById(slot + '_enabled');
