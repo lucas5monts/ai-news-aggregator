@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#g)"/>
+  <!-- sparkles icon (simplified) -->
+  <path d="M16 7 L17.2 12.8 L23 14 L17.2 15.2 L16 21 L14.8 15.2 L9 14 L14.8 12.8 Z" fill="white"/>
+  <path d="M23 7 L23.6 9.4 L26 10 L23.6 10.6 L23 13 L22.4 10.6 L20 10 L22.4 9.4 Z" fill="white" opacity="0.8"/>
+  <path d="M10 20 L10.5 22 L12.5 22.5 L10.5 23 L10 25 L9.5 23 L7.5 22.5 L9.5 22 Z" fill="white" opacity="0.7"/>
+</svg>

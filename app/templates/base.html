@@ -1,23 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}AI News{% endblock %}</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-
-  <script nonce="{{ csp_nonce() }}">
-    (function() {
-      var stored = localStorage.getItem('theme');
-      if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
-    })();
-  </script>
 
   <script nonce="{{ csp_nonce() }}">tailwind.config = {
     darkMode: 'class',
@@ -201,15 +193,6 @@
           {% endif %}
         </nav>
 
-        <button id="theme-toggle"
-                class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400
-                       bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800
-                       hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shrink-0"
-                title="Toggle theme">
-          <i id="theme-icon-sun" data-lucide="sun" class="w-4 h-4 hidden"></i>
-          <i id="theme-icon-moon" data-lucide="moon" class="w-4 h-4 hidden"></i>
-          <i id="theme-icon-monitor" data-lucide="monitor" class="w-4 h-4 hidden"></i>
-        </button>
       </div>
     </div>
 
@@ -351,35 +334,6 @@
       }, 400);
     });
 
-    var themes = ['system', 'light', 'dark'];
-    function getTheme() { return localStorage.getItem('theme') || 'system'; }
-    function applyTheme(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else if (t === 'light') document.documentElement.classList.remove('dark');
-      else {
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
-      }
-    }
-    function updateThemeIcon(t) {
-      ['sun','moon','monitor'].forEach(function(name) {
-        document.getElementById('theme-icon-' + name).classList.add('hidden');
-      });
-      var icon = t === 'light' ? 'sun' : t === 'dark' ? 'moon' : 'monitor';
-      document.getElementById('theme-icon-' + icon).classList.remove('hidden');
-    }
-    updateThemeIcon(getTheme());
-    document.getElementById('theme-toggle').addEventListener('click', function() {
-      var current = getTheme();
-      var next = themes[(themes.indexOf(current) + 1) % themes.length];
-      if (next === 'system') localStorage.removeItem('theme');
-      else localStorage.setItem('theme', next);
-      applyTheme(next);
-      updateThemeIcon(next);
-    });
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if (!localStorage.getItem('theme')) applyTheme('system');
-    });
   </script>
 </body>
 </html>
