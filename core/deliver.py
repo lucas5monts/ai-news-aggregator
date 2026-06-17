@@ -51,14 +51,32 @@ def load_email_config() -> dict[str, str]:
     return config
 
 
-def build_subject(edition: str, story_count: int) -> str:
-    """Return formatted subject: 'AI Brief · Thu May 21 · 6:00 AM · 12 stories'."""
+def build_subject(edition: str, story_count: int, send_time: str | None = None) -> str:
+    """Return formatted subject: 'AI Brief · Thu May 21 · 6:00 AM · 12 stories'.
+
+    If *send_time* ("HH:MM", 24-hour) is provided, it is formatted as a 12-hour
+    time and used in the subject. Otherwise a sensible default is used based on
+    *edition*.
+    """
     now = datetime.now()
     weekday = now.strftime("%a")
     mon = now.strftime("%b")
     day = str(now.day)
-    edition_time = "6:00 AM" if edition == "morning" else "8:00 PM"
+    edition_time = _format_12h(send_time) or ("6:00 AM" if edition == "morning" else "8:00 PM")
     return f"AI Brief · {weekday} {mon} {day} · {edition_time} · {story_count} stories"
+
+
+def _format_12h(time_str: str | None) -> str | None:
+    """Convert 'HH:MM' (24-hour) to a 12-hour label like '5:00 AM'. None on bad input."""
+    if not time_str:
+        return None
+    try:
+        hour, minute = (int(x) for x in time_str.split(":"))
+        suffix = "AM" if hour < 12 else "PM"
+        h12 = hour % 12 or 12
+        return f"{h12}:{minute:02d} {suffix}"
+    except Exception:
+        return None
 
 
 def send_digest(
@@ -68,12 +86,23 @@ def send_digest(
     to_address: str,
     from_address: str,
     app_password: str,
+    unsubscribe_url: str = "",
 ) -> None:
     """Build a MIMEMultipart/alternative message and send via Gmail SMTP_SSL.
 
     Logs message size on success; logs a useful error and re-raises on failure.
-    Never logs the app password.
+    Never logs the app password. When *unsubscribe_url* is provided, a footer
+    link is appended to both the plaintext and HTML parts (CAN-SPAM / GDPR).
     """
+    if unsubscribe_url:
+        plaintext = plaintext + f"\n\n─\nUnsubscribe: {unsubscribe_url}"
+        # For HTML: inject a footer link before the closing body tag.
+        html = html.replace(
+            "</body>",
+            f'<p style="text-align:center;font-size:11px;color:#999;margin-top:32px;">'
+            f'<a href="{unsubscribe_url}" style="color:#999;">Unsubscribe</a></p></body>',
+        )
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_address

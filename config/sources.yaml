@@ -1,55 +1,183 @@
-# RSS feed sources for the AI news aggregator.
-# Phase 1 starts with 3 reliable feeds. Phase 2 expands to the full list.
+# RSS feed sources for the general news aggregator.
+#
+# Stories are personalized per-user by an LLM against each subscriber's
+# interest topics (see core/relevance.py). The public feed shows everything
+# ranked by recency + source weight.
 #
 # Each source has:
 #   name:     short display label (shown in the digest)
 #   url:      RSS/Atom feed URL
-#   category: one of [research, industry, policy, tools]
+#   category: one of [world, us, tech, ai, business, science, politics, sports]
 #   weight:   ranking multiplier (1.0 = normal, >1 = boost, <1 = de-prioritize)
 #   enabled:  toggle on/off without deleting the entry
 
 sources:
+  # ----- World -----
+  - name: Reuters World
+    url: https://www.reutersagency.com/feed/?best-topics=world&post_type=best
+    category: world
+    weight: 1.3
+    enabled: true
+
+  - name: AP News
+    url: https://feedx.net/rss/ap.xml
+    category: world
+    weight: 1.3
+    enabled: true
+
+  - name: BBC World
+    url: https://feeds.bbci.co.uk/news/world/rss.xml
+    category: world
+    weight: 1.2
+    enabled: true
+
+  - name: Al Jazeera English
+    url: https://www.aljazeera.com/xml/rss/all.xml
+    category: world
+    weight: 1.0
+    enabled: true
+
+  # ----- US -----
+  - name: NPR News
+    url: https://feeds.npr.org/1001/rss.xml
+    category: us
+    weight: 1.2
+    enabled: true
+
+  - name: PBS NewsHour
+    url: https://www.pbs.org/newshour/feeds/rss/headlines
+    category: us
+    weight: 1.1
+    enabled: true
+
+  - name: The Hill
+    url: https://thehill.com/feed/
+    category: us
+    weight: 1.0
+    enabled: true
+
+  - name: Axios
+    url: https://api.axios.com/feed/
+    category: us
+    weight: 1.0
+    enabled: true
+
+  # ----- Tech -----
+  - name: TechCrunch
+    url: https://techcrunch.com/feed/
+    category: tech
+    weight: 1.1
+    enabled: true
+
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+    category: tech
+    weight: 1.1
+    enabled: true
+
+  - name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+    category: tech
+    weight: 1.0
+    enabled: true
+
+  - name: Wired
+    url: https://www.wired.com/feed/rss
+    category: tech
+    weight: 1.0
+    enabled: true
+
+  # ----- AI -----
   - name: OpenAI News
     url: https://openai.com/news/rss.xml
-    category: industry
+    category: ai
     weight: 1.5
     enabled: true
 
   - name: Hugging Face Blog
     url: https://huggingface.co/blog/feed.xml
-    category: tools
+    category: ai
     weight: 1.2
     enabled: true
 
-  - name: TechCrunch AI
-    url: https://techcrunch.com/category/artificial-intelligence/feed/
-    category: industry
-    weight: 1.0
-    enabled: true
-
-  # ----- Phase 2 additions -----
-  # No official RSS feed found — /news/rss.xml 404s and anthropic.com/news
-  # has no rel=alternate feed link in page source.
-  - name: Anthropic News
-    url: https://www.anthropic.com/news/rss.xml
-    category: industry
-    weight: 1.5
-    enabled: false
-
   - name: Google DeepMind Blog
     url: https://deepmind.google/blog/rss.xml
-    category: research
+    category: ai
     weight: 1.3
-    enabled: true
-
-  - name: Wired AI
-    url: https://www.wired.com/feed/tag/ai/latest/rss
-    category: industry
-    weight: 1.0
     enabled: true
 
   - name: MIT Tech Review AI
     url: https://www.technologyreview.com/topic/artificial-intelligence/feed
-    category: policy
+    category: ai
     weight: 1.2
+    enabled: true
+
+  # ----- Business -----
+  - name: Bloomberg Technology
+    url: https://feeds.bloomberg.com/technology/news.rss
+    category: business
+    weight: 1.2
+    enabled: true
+
+  - name: Financial Times Tech
+    url: https://www.ft.com/technology?format=rss
+    category: business
+    weight: 1.1
+    enabled: true
+
+  - name: Fortune
+    url: https://fortune.com/feed/
+    category: business
+    weight: 1.0
+    enabled: true
+
+  # ----- Science -----
+  - name: Nature News
+    url: https://www.nature.com/nature.rss
+    category: science
+    weight: 1.2
+    enabled: true
+
+  - name: New Scientist
+    url: https://www.newscientist.com/feed/home/
+    category: science
+    weight: 1.0
+    enabled: true
+
+  - name: Science Daily
+    url: https://www.sciencedaily.com/rss/all.xml
+    category: science
+    weight: 1.0
+    enabled: true
+
+  # ----- Politics -----
+  - name: Politico
+    url: https://www.politico.com/rss/politicopicks.xml
+    category: politics
+    weight: 1.1
+    enabled: true
+
+  - name: The Atlantic
+    url: https://www.theatlantic.com/feed/all/
+    category: politics
+    weight: 1.0
+    enabled: true
+
+  - name: FiveThirtyEight
+    url: https://fivethirtyeight.com/all/feed
+    category: politics
+    weight: 1.0
+    enabled: true
+
+  # ----- Sports -----
+  - name: ESPN Top Headlines
+    url: https://www.espn.com/espn/rss/news
+    category: sports
+    weight: 1.0
+    enabled: true
+
+  - name: BBC Sport
+    url: https://feeds.bbci.co.uk/sport/rss.xml
+    category: sports
+    weight: 1.0
     enabled: true

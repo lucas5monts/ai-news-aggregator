@@ -72,6 +72,38 @@ class TestTimezonePredicates(unittest.TestCase):
         result = is_users_morning("Not/ATimezone", now_utc=utc_time)
         self.assertTrue(result)  # 6:00 UTC == 6:00 in fallback UTC
 
+    def test_custom_morning_time_matches(self):
+        """Custom morning time 07:30 should match at the right UTC instant."""
+        # 7:30 AM UTC user
+        utc_time = self._utc(7, 30)
+        self.assertTrue(is_users_morning("UTC", time_str="07:30", now_utc=utc_time))
+        # Default 06:00 should NOT match at 07:30
+        self.assertFalse(is_users_morning("UTC", now_utc=utc_time))
+
+    def test_custom_evening_time_matches(self):
+        """Custom evening time 21:15 should match at the right UTC instant."""
+        utc_time = self._utc(21, 15)
+        self.assertTrue(is_users_evening("UTC", time_str="21:15", now_utc=utc_time))
+        # Default 20:00 should NOT match at 21:15
+        self.assertFalse(is_users_evening("UTC", now_utc=utc_time))
+
+    def test_custom_time_respects_timezone(self):
+        """Custom time is interpreted in the user's local timezone."""
+        # 9:00 AM EDT (summer, UTC-4) == 13:00 UTC
+        utc_time = self._utc(13, 0)
+        self.assertTrue(
+            is_users_morning("America/New_York", time_str="09:00", now_utc=utc_time)
+        )
+
+    def test_malformed_time_str_falls_back_to_six(self):
+        """A malformed time string falls back to 06:00."""
+        from app.scheduler import _parse_time_str
+        self.assertEqual(_parse_time_str("not-a-time"), (6, 0))
+        self.assertEqual(_parse_time_str(""), (6, 0))
+        # And the predicate uses that fallback: 06:00 UTC matches
+        utc_time = self._utc(6, 0)
+        self.assertTrue(is_users_morning("UTC", time_str="garbage", now_utc=utc_time))
+
 
 class TestDigestJobIdempotency(unittest.TestCase):
     """Test that _already_sent_today prevents double-sends."""
@@ -187,6 +219,90 @@ class TestDigestJobIdempotency(unittest.TestCase):
         with patch("app.scheduler._send_digest_for_user") as mock_send:
             with patch("app.scheduler.is_users_morning", return_value=True):
                 _digest_job("morning", self.app)
+        mock_send.assert_not_called()
+
+
+class TestCustomDigestJob(unittest.TestCase):
+    """Test the user-defined custom-times digest job."""
+
+    def setUp(self):
+        from app import create_app
+        self.app = create_app({
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+            "SECRET_KEY": "test-custom",
+        })
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        from app.models import db
+        db.create_all()
+        self.db = db
+
+    def tearDown(self):
+        self.db.session.remove()
+        self.db.drop_all()
+        self.ctx.pop()
+
+    def _make_user(self, **settings_kwargs):
+        from app.models import User, UserSettings
+        user = User(email=f"u{settings_kwargs.get('user_id', 'x')}@example.com")
+        self.db.session.add(user)
+        self.db.session.flush()
+        settings = UserSettings(user_id=user.id, **settings_kwargs)
+        self.db.session.add(settings)
+        return user, settings
+
+    def test_custom_time_triggers_send(self):
+        from app.models import UserDigestTime
+        from app.scheduler import _custom_digest_job
+
+        user, _ = self._make_user(send_email=True, timezone="UTC")
+        self.db.session.add(UserDigestTime(user_id=user.id, send_time="12:30", enabled=True))
+        self.db.session.commit()
+
+        now = datetime(2025, 5, 23, 12, 30, 0, tzinfo=timezone.utc)
+        with patch("app.scheduler.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            with patch("app.scheduler._send_digest_for_user") as mock_send:
+                _custom_digest_job(self.app)
+
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args.kwargs
+        self.assertEqual(kwargs["log_edition"], "custom@12:30")
+        self.assertEqual(kwargs["render_edition"], "evening")  # hour 12 is not < 12
+        self.assertEqual(kwargs["send_time"], "12:30")
+
+    def test_custom_time_not_matching_skips(self):
+        from app.models import UserDigestTime
+        from app.scheduler import _custom_digest_job
+
+        user, _ = self._make_user(send_email=True, timezone="UTC")
+        self.db.session.add(UserDigestTime(user_id=user.id, send_time="12:30", enabled=True))
+        self.db.session.commit()
+
+        now = datetime(2025, 5, 23, 9, 0, 0, tzinfo=timezone.utc)
+        with patch("app.scheduler.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            with patch("app.scheduler._send_digest_for_user") as mock_send:
+                _custom_digest_job(self.app)
+        mock_send.assert_not_called()
+
+    def test_custom_time_duplicate_of_preset_is_skipped(self):
+        """A custom time equal to an enabled preset must not double-send."""
+        from app.models import UserDigestTime
+        from app.scheduler import _custom_digest_job
+
+        user, _ = self._make_user(
+            send_email=True, timezone="UTC", morning_enabled=True, morning_time="06:00"
+        )
+        self.db.session.add(UserDigestTime(user_id=user.id, send_time="06:00", enabled=True))
+        self.db.session.commit()
+
+        now = datetime(2025, 5, 23, 6, 0, 0, tzinfo=timezone.utc)
+        with patch("app.scheduler.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            with patch("app.scheduler._send_digest_for_user") as mock_send:
+                _custom_digest_job(self.app)
         mock_send.assert_not_called()
 
 

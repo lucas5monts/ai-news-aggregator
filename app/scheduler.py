@@ -32,14 +32,29 @@ _scheduler: BackgroundScheduler | None = None
 # ------------------------------------------------------------------
 
 
-def is_users_morning(user_tz: str, now_utc: datetime | None = None) -> bool:
-    """Return True if it's currently 6:00 AM (± 0 min) in *user_tz*."""
-    return _is_hour_minute(user_tz, hour=6, minute=0, now_utc=now_utc)
+def is_users_morning(
+    user_tz: str, time_str: str = "06:00", now_utc: datetime | None = None
+) -> bool:
+    """Return True if local time in *user_tz* matches *time_str* (default 6:00 AM)."""
+    hour, minute = _parse_time_str(time_str)
+    return _is_hour_minute(user_tz, hour=hour, minute=minute, now_utc=now_utc)
 
 
-def is_users_evening(user_tz: str, now_utc: datetime | None = None) -> bool:
-    """Return True if it's currently 8:00 PM (20:00, ± 0 min) in *user_tz*."""
-    return _is_hour_minute(user_tz, hour=20, minute=0, now_utc=now_utc)
+def is_users_evening(
+    user_tz: str, time_str: str = "20:00", now_utc: datetime | None = None
+) -> bool:
+    """Return True if local time in *user_tz* matches *time_str* (default 8:00 PM)."""
+    hour, minute = _parse_time_str(time_str)
+    return _is_hour_minute(user_tz, hour=hour, minute=minute, now_utc=now_utc)
+
+
+def _parse_time_str(time_str: str) -> tuple[int, int]:
+    """Parse 'HH:MM' → (hour, minute). Falls back to (6, 0) on bad input."""
+    try:
+        h, m = time_str.split(":")
+        return int(h), int(m)
+    except Exception:
+        return 6, 0
 
 
 def _is_hour_minute(
@@ -137,7 +152,8 @@ def _digest_job(edition: str, app) -> None:
                 continue
 
             # Check if it's their time
-            if not check_fn(settings.timezone, now_utc=now_utc):
+            time_str = settings.morning_time if edition == "morning" else settings.evening_time
+            if not check_fn(settings.timezone, time_str=time_str, now_utc=now_utc):
                 continue
 
             # Idempotency: don't double-send
@@ -145,15 +161,87 @@ def _digest_job(edition: str, app) -> None:
                 log.info("scheduler: already sent %s digest to user_id=%s today", edition, user.id)
                 continue
 
-            _send_digest_for_user(user, settings, edition, now_utc, app)
+            _send_digest_for_user(
+                user,
+                settings,
+                render_edition=edition,
+                log_edition=edition,
+                window_hours=24 if edition == "morning" else 12,
+                send_time=time_str,
+                now_utc=now_utc,
+                app=app,
+            )
 
 
-def _send_digest_for_user(user, settings, edition: str, now_utc: datetime, app) -> None:
+def _custom_digest_job(app) -> None:
+    """Send digests for user-defined custom times (beyond morning/evening)."""
+    with app.app_context():
+        from .models import User, UserDigestTime, UserSettings, db
+
+        now_utc = datetime.now(timezone.utc)
+
+        users: list[User] = db.session.query(User).all()
+        for user in users:
+            settings = db.session.get(UserSettings, user.id)
+            if settings is None or not settings.send_email:
+                continue
+
+            custom_times = (
+                db.session.query(UserDigestTime)
+                .filter_by(user_id=user.id, enabled=True)
+                .all()
+            )
+            for ct in custom_times:
+                time_str = ct.send_time
+
+                # Skip times already covered by an enabled preset to avoid
+                # sending two digests at the same moment.
+                if settings.morning_enabled and time_str == settings.morning_time:
+                    continue
+                if settings.evening_enabled and time_str == settings.evening_time:
+                    continue
+
+                if not _is_hour_minute(
+                    settings.timezone,
+                    *_parse_time_str(time_str),
+                    now_utc=now_utc,
+                ):
+                    continue
+
+                log_edition = f"custom@{time_str}"  # unique per time, fits VARCHAR(16)
+                if _already_sent_today(user.id, log_edition, now_utc):
+                    continue
+
+                hour, _ = _parse_time_str(time_str)
+                render_edition = "morning" if hour < 12 else "evening"
+                _send_digest_for_user(
+                    user,
+                    settings,
+                    render_edition=render_edition,
+                    log_edition=log_edition,
+                    window_hours=24 if render_edition == "morning" else 12,
+                    send_time=time_str,
+                    now_utc=now_utc,
+                    app=app,
+                )
+
+
+def _send_digest_for_user(
+    user,
+    settings,
+    *,
+    render_edition: str,
+    log_edition: str,
+    window_hours: int,
+    send_time: str,
+    now_utc: datetime,
+    app,
+) -> None:
     """Run the full pipeline and send a digest for one user."""
     from pathlib import Path
     import yaml
-    from .models import Digest, DigestStory, UserSource, db
-    from core import fetch, pipeline
+    from .models import Digest, DigestStory, UserSource, UserTopic, db
+    from core import fetch, pipeline, relevance
     from core.render import render_html, render_plaintext
     from core.deliver import build_subject, load_email_config, send_digest
 
@@ -175,29 +263,45 @@ def _send_digest_for_user(user, settings, edition: str, now_utc: datetime, app) 
             if user_source_map.get(s["name"], s.get("enabled", True))
         ]
 
-        keywords = settings_yaml.get("relevance_keywords") or []
         max_summary_chars = int(settings_yaml.get("digest", {}).get("max_summary_chars", 280))
         category_order = settings_yaml.get("digest", {}).get(
-            "category_order", ["industry", "research", "tools", "policy"]
+            "category_order",
+            ["world", "us", "tech", "ai", "business", "science", "politics", "sports"],
         )
-        window_hours = 24 if edition == "morning" else 12
+        llm_cfg = settings_yaml.get("llm", {}) or {}
+
+        # Per-user interest topics drive LLM personalization (if any are set).
+        user_topics = [
+            t.topic for t in db.session.query(UserTopic).filter_by(user_id=user.id).all()
+        ]
 
         raw = fetch.fetch_all(user_sources)
         total_scanned = len(raw)
         stories = pipeline.normalize(raw, max_summary_chars=max_summary_chars)
-        stories = pipeline.filter_relevant(stories, keywords, window_hours)
+        # Age-window filter only; topic relevance is handled by the LLM below.
+        stories = pipeline.filter_relevant(stories, [], window_hours)
         source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in all_sources}
         stories = pipeline.rank(stories, source_weights)
+        if user_topics:
+            stories = relevance.score_stories_for_user(
+                stories,
+                user_topics,
+                relevance_threshold=float(llm_cfg.get("relevance_threshold", 0.4)),
+                max_stories_to_score=int(llm_cfg.get("max_stories_to_score", 50)),
+                fallback_to_all=bool(llm_cfg.get("fallback_to_all", True)),
+            )
         stories = pipeline.dedupe(stories)
         stories = pipeline.cap(stories, settings.max_stories)
 
-        html = render_html(stories, edition=edition,
+        html = render_html(stories, edition=render_edition,
                            category_order=category_order, total_scanned=total_scanned)
-        plaintext = render_plaintext(stories, edition=edition,
+        plaintext = render_plaintext(stories, edition=render_edition,
                                      category_order=category_order, total_scanned=total_scanned)
-        subject = build_subject(edition, len(stories))
+        subject = build_subject(render_edition, len(stories), send_time=send_time)
 
         cfg = load_email_config()
+        base_url = os.environ.get("APP_BASE_URL", "http://localhost:8080").rstrip("/")
+        unsubscribe_url = f"{base_url}/unsubscribe/{user.unsubscribe_token}"
         send_digest(
             subject=subject,
             plaintext=plaintext,
@@ -205,12 +309,13 @@ def _send_digest_for_user(user, settings, edition: str, now_utc: datetime, app) 
             to_address=user.email,
             from_address=cfg["GMAIL_ADDRESS"],
             app_password=cfg["GMAIL_APP_PASSWORD"],
+            unsubscribe_url=unsubscribe_url,
         )
 
         # Log to DB
         digest = Digest(
             user_id=user.id,
-            edition=edition,
+            edition=log_edition,
             sent_at=now_utc,
             story_count=len(stories),
             subject=subject,
@@ -224,7 +329,7 @@ def _send_digest_for_user(user, settings, edition: str, now_utc: datetime, app) 
 
         log.info(
             "scheduler: sent %s digest to user_id=%s (%d stories)",
-            edition, user.id, len(stories)
+            log_edition, user.id, len(stories)
         )
     except Exception as exc:
         log.error("scheduler: digest job failed for user_id=%s: %s", user.id, exc)
@@ -283,6 +388,16 @@ def init_scheduler(app) -> None:
         minute="*",
         id="evening_digest",
         args=["evening", app],
+        replace_existing=True,
+    )
+
+    # Job 4: custom user-defined times — every minute
+    _scheduler.add_job(
+        func=_custom_digest_job,
+        trigger="cron",
+        minute="*",
+        id="custom_digest",
+        args=[app],
         replace_existing=True,
     )
 

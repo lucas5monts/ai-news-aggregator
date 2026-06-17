@@ -10,3 +10,6 @@ apscheduler>=3.10
 gunicorn>=21.2
 psycopg2-binary>=2.9
 flask-wtf>=1.2
+Flask-Limiter>=3.5
+Flask-Login>=0.6
+anthropic>=0.40

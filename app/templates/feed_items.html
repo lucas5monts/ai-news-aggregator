@@ -1,4 +1,52 @@
-{% from "_macros.html" import story_card, category_badge %}
+{% from "_macros.html" import story_card, category_badge, hero_card_portrait, story_list_item, ad_slot %}
+
+{% if ai_meta and ai_meta.personalized %}
+<!-- Personalized feed header -->
+<div class="flex items-start gap-3 px-4 py-3 rounded-2xl
+            bg-indigo-500/5 dark:bg-indigo-500/10
+            border border-indigo-200/60 dark:border-indigo-500/20 mb-8">
+  <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600
+              flex items-center justify-center shrink-0 shadow-sm shadow-indigo-500/20">
+    <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+  </div>
+  <div class="min-w-0">
+    <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+      Personalized by Claude
+    </p>
+    <p class="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">
+      Scored {{ ai_meta.total_scored }} stories against your interests
+      and selected {{ ai_meta.kept }} for you
+      {% if ai_meta.topics_active %}
+        — matching
+        {% for t in ai_meta.topics_active[:3] %}
+          <span class="font-medium">{{ t }}</span>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% if ai_meta.topics_active | length > 3 %}and {{ ai_meta.topics_active | length - 3 }} more{% endif %}
+      {% endif %}.
+    </p>
+  </div>
+</div>
+{% else %}
+<!-- No-topics nudge (public feed) -->
+<div class="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl
+            bg-zinc-50 dark:bg-zinc-900/60
+            border border-zinc-200/60 dark:border-zinc-800 mb-8">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
+      <i data-lucide="sparkles" class="w-4 h-4 text-zinc-500 dark:text-zinc-400"></i>
+    </div>
+    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+      This is the general feed.
+      <span class="font-medium text-zinc-800 dark:text-zinc-200">Add your interests</span>
+      and Claude will personalize it for you.
+    </p>
+  </div>
+  <a href="{{ url_for('subscriptions.subscribe') }}"
+     class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+    Set topics →
+  </a>
+</div>
+{% endif %}
 
 {% if not stories %}
 <div class="text-center py-24 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
@@ -18,36 +66,153 @@
   <span class="text-xs text-zinc-500 dark:text-zinc-400">scanned {{ total_scanned }} RSS entries</span>
 </div>
 
-{# Featured top story #}
 {% if stories | length >= 1 %}
-<div class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-3">Top story</p>
-  {{ story_card(stories[0], featured=true) }}
-</div>
-{% endif %}
+<section class="mb-12">
+  <div class="grid lg:grid-cols-[5fr_5fr_3fr] gap-5 lg:gap-6 items-stretch">
 
-{# Category sections #}
-{% set seen_cats = [] %}
-{% for s in stories[1:] %}{% if s.source_category not in seen_cats %}{% set _ = seen_cats.append(s.source_category) %}{% endif %}{% endfor %}
-
-{% for cat in seen_cats %}
-  {% set cat_stories = stories[1:] | selectattr("source_category", "equalto", cat) | list %}
-  {% if cat_stories %}
-  <section class="mb-10">
-    <div class="flex items-center gap-3 mb-5">
-      {{ category_badge(cat) }}
-      <h2 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200 capitalize">{{ cat }}</h2>
-      <div class="flex-1 h-px bg-gradient-to-r from-zinc-200 dark:from-zinc-800 to-transparent"></div>
-      <span class="text-xs text-zinc-400">{{ cat_stories | length }}</span>
+    {# Column 1: Portrait hero #}
+    <div class="lg:col-span-1">
+      {{ hero_card_portrait(stories[0]) }}
     </div>
 
-    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-      {% for s in cat_stories %}
+    {# Column 2: 2×2 card grid (stories 1–4) #}
+    {% if stories | length >= 2 %}
+    <div class="lg:col-span-1 grid grid-cols-2 gap-4 content-start">
+      {% for s in stories[1:5] %}
         {{ story_card(s) }}
       {% endfor %}
     </div>
-  </section>
-  {% endif %}
-{% endfor %}
+    {% endif %}
+
+    {# Column 3: Text headlines sidebar (stories 5–10) #}
+    {% if stories | length >= 6 %}
+    <aside class="lg:col-span-1 flex flex-col rounded-3xl border border-zinc-200/80 dark:border-zinc-800
+                  bg-white/60 dark:bg-zinc-900/40 px-5 sm:px-6 self-start">
+      <p class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 pt-5 pb-1">
+        Latest headlines
+      </p>
+      <div class="divide-y divide-zinc-200/80 dark:divide-zinc-800">
+        {% for s in stories[5:11] %}
+          {{ story_list_item(s) }}
+        {% endfor %}
+      </div>
+    </aside>
+    {% endif %}
+
+  </div>
+</section>
+{% endif %}
+
+{# Leaderboard ad #}
+{{ ad_slot('min-h-[90px] sm:min-h-[120px]', 'Advertisement', 'mb-12') }}
+
+{# Main content + sidebar — news-portal layout #}
+{% set rest = stories[11:] %}
+{% set seen_cats = [] %}
+{% for s in rest %}{% if s.source_category not in seen_cats %}{% set _ = seen_cats.append(s.source_category) %}{% endif %}{% endfor %}
+
+<div class="grid lg:grid-cols-3 gap-8 lg:gap-12 items-start">
+  {# ---- Main column: themed category blocks ---- #}
+  <div class="lg:col-span-2 space-y-12">
+    {% for cat in seen_cats %}
+      {% set cat_stories = rest | selectattr("source_category", "equalto", cat) | list %}
+      {% if cat_stories %}
+      <section>
+        <div class="flex items-center gap-3 mb-5">
+          <span class="w-1.5 h-6 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600"></span>
+          <h2 class="font-display text-xl font-bold tracking-tight text-zinc-900 dark:text-white capitalize">{{ cat }}</h2>
+          <span class="text-xs font-medium text-zinc-400 dark:text-zinc-500">{{ cat_stories | length }} {{ 'story' if cat_stories | length == 1 else 'stories' }}</span>
+          <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2 2xl:grid-cols-3">
+          {% for s in cat_stories %}
+            {{ story_card(s) }}
+          {% endfor %}
+        </div>
+      </section>
+
+      {# In-feed ad after the first category block #}
+      {% if loop.first %}
+        {{ ad_slot('min-h-[120px]', 'Advertisement') }}
+      {% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {# ---- Sidebar ---- #}
+  <aside class="lg:col-span-1 lg:sticky lg:top-20 space-y-6">
+    {# Subscribe / community card #}
+    <div class="rounded-3xl overflow-hidden border border-indigo-200/60 dark:border-indigo-500/20
+                bg-gradient-to-br from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10
+                dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-fuchsia-500/10 p-6">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 mb-4">
+        <i data-lucide="mail" class="w-6 h-6 text-white"></i>
+      </div>
+      <h3 class="font-display font-bold text-lg text-zinc-900 dark:text-white">Join the community</h3>
+      <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1.5 leading-relaxed">
+        Get the morning &amp; evening AI digest delivered straight to your inbox. No login required.
+      </p>
+      <a href="{{ url_for('subscriptions.subscribe') }}"
+         class="mt-5 inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+                bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition-all">
+        Subscribe free
+        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </a>
+    </div>
+
+    {# Sidebar ad #}
+    {{ ad_slot('min-h-[280px]', 'Advertisement') }}
+
+    {% if topic_counts %}
+    <div class="rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i>
+        <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Your interests today</h3>
+      </div>
+      <ul class="space-y-2">
+        {% for topic, count in topic_counts %}
+        <li class="flex items-center justify-between gap-3 py-1.5 text-sm
+                   border-b border-zinc-100 dark:border-zinc-800/60 last:border-0">
+          <span class="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 font-medium truncate">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+            {{ topic }}
+          </span>
+          <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
+            {{ count }} {{ 'story' if count == 1 else 'stories' }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Sources #}
+    <div class="rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-6">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-4">Sources</h3>
+      <ul class="space-y-1">
+        {% for src in stories | map(attribute='source_name') | unique | list %}
+        <li class="flex items-center justify-between gap-3 py-2 text-sm border-b border-zinc-100 dark:border-zinc-800/60 last:border-0">
+          <span class="flex items-center gap-2.5 text-zinc-700 dark:text-zinc-300 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+            {{ src }}
+          </span>
+          <span class="text-xs text-zinc-400 dark:text-zinc-500">
+            {{ stories | selectattr('source_name', 'equalto', src) | list | length }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {# About #}
+    <div class="rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-6">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-3">About this feed</h3>
+      <p class="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        Stories are pulled from trusted AI sources, then ranked by recency and relevance and deduped so you only see each story once.
+      </p>
+    </div>
+  </aside>
+</div>
 
 {% endif %}

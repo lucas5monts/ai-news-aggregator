@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Preferences — Daily Brief{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Your account</p>
+  <h1 class="font-display text-3xl font-bold tracking-tight mb-2">Preferences</h1>
+  <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-8">
+    Update your interests, schedule, and sources.
+  </p>
+
+  <form method="POST" action="{{ url_for('preferences.preferences') }}"
+        class="space-y-6 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur p-6 sm:p-8 shadow-xl shadow-zinc-900/5">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <i data-lucide="user" class="w-4 h-4"></i>
+      <span>Editing preferences for <span class="font-semibold text-zinc-900 dark:text-zinc-100">{{ email }}</span></span>
+    </div>
+
+    <div>
+      <label for="topics" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your interests</label>
+      <textarea id="topics" name="topics" rows="3"
+                placeholder="e.g. climate change, NBA basketball, AI startups, geopolitics, Formula 1"
+                class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-y">{{ topics_text }}</textarea>
+      <p class="text-xs text-zinc-400 mt-1.5">Comma- or line-separated. Leave blank for top general news (no personalization).</p>
+    </div>
+
+    <div class="space-y-3">
+      <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery schedule</p>
+
+      <!-- Morning slot -->
+      <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" name="morning_enabled" id="morning_enabled" {% if settings.morning_enabled %}checked{% endif %}
+                 class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+          <div class="flex-1">
+            <span class="text-sm font-medium block">Morning digest</span>
+            <span class="text-xs text-zinc-500">Delivered once daily in your timezone</span>
+          </div>
+          <input type="time" name="morning_time" id="morning_time" value="{{ settings.morning_time or '06:00' }}"
+                 class="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1
+                        bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                        disabled:opacity-40 disabled:cursor-not-allowed">
+        </label>
+      </div>
+
+      <!-- Evening slot -->
+      <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" name="evening_enabled" id="evening_enabled" {% if settings.evening_enabled %}checked{% endif %}
+                 class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+          <div class="flex-1">
+            <span class="text-sm font-medium block">Evening digest</span>
+            <span class="text-xs text-zinc-500">Delivered once daily in your timezone</span>
+          </div>
+          <input type="time" name="evening_time" id="evening_time" value="{{ settings.evening_time or '20:00' }}"
+                 class="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1
+                        bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                        disabled:opacity-40 disabled:cursor-not-allowed">
+        </label>
+      </div>
+
+      <!-- Custom times -->
+      <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <span class="text-sm font-medium block">Custom times</span>
+            <span class="text-xs text-zinc-500">Add your own special delivery times</span>
+          </div>
+          <button type="button" id="add-time"
+                  class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400
+                         hover:underline inline-flex items-center gap-1">
+            + Add time
+          </button>
+        </div>
+        <div id="custom-times" class="flex flex-wrap gap-2 mt-3 empty:mt-0"
+             data-initial='{{ initial_times | tojson }}'></div>
+        <p id="custom-times-empty" class="text-xs text-zinc-400 mt-2">None yet — your brief arrives only at the times above.</p>
+      </div>
+
+      <label class="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+        <input type="checkbox" name="send_email" {% if settings.send_email %}checked{% endif %} class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+        <div>
+          <span class="text-sm font-medium block">Email delivery</span>
+          <span class="text-xs text-zinc-500">Uncheck to pause all digests</span>
+        </div>
+      </label>
+    </div>
+
+    <div>
+      <label for="timezone" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Timezone</label>
+      <input type="text" id="timezone" name="timezone" value="{{ settings.timezone }}" placeholder="America/Los_Angeles"
+             class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+      <p class="text-xs text-zinc-400 mt-1.5">IANA timezone, e.g. America/New_York</p>
+    </div>
+
+    {% if sources %}
+    <div class="space-y-2.5">
+      <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Sources</p>
+      <div class="grid sm:grid-cols-2 gap-2">
+        {% for src in sources %}
+        <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+          <input type="checkbox" name="sources" value="{{ src.name }}" {% if src.enabled %}checked{% endif %} class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="text-sm font-medium truncate">{{ src.name }}</span>
+          <span class="text-[10px] uppercase tracking-wide text-zinc-400 ml-auto">{{ src.category }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <button type="submit"
+            class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
+                   text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-lg shadow-indigo-600/25
+                   transition-all active:scale-[0.98]">
+      Save preferences
+    </button>
+  </form>
+
+  <script>
+    (function () {
+      ['morning', 'evening'].forEach(function (slot) {
+        var cb = document.getElementById(slot + '_enabled');
+        var ti = document.getElementById(slot + '_time');
+        if (!cb || !ti) return;
+        function sync() { ti.disabled = !cb.checked; }
+        sync();
+        cb.addEventListener('change', sync);
+      });
+
+      // Custom delivery times: add/remove arbitrary "HH:MM" inputs.
+      var MAX_CUSTOM_TIMES = 10;
+      var timesWrap = document.getElementById('custom-times');
+      var timesEmpty = document.getElementById('custom-times-empty');
+      var addBtn = document.getElementById('add-time');
+      if (!timesWrap) return;
+
+      function refreshEmpty() {
+        if (!timesEmpty) return;
+        timesEmpty.style.display = timesWrap.children.length ? 'none' : '';
+      }
+
+      function addTimeRow(value) {
+        if (timesWrap.children.length >= MAX_CUSTOM_TIMES) return;
+        var row = document.createElement('span');
+        row.className = 'inline-flex items-center gap-1 rounded-lg border border-zinc-200 ' +
+          'dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 pl-2 pr-1 py-1';
+
+        var input = document.createElement('input');
+        input.type = 'time';
+        input.name = 'custom_times';
+        input.value = value || '12:00';
+        input.className = 'text-sm bg-transparent focus:outline-none';
+        row.appendChild(input);
+
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Remove time');
+        remove.className = 'w-5 h-5 inline-flex items-center justify-center rounded ' +
+          'text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors';
+        remove.textContent = '\u00d7';
+        remove.addEventListener('click', function () { row.remove(); refreshEmpty(); });
+        row.appendChild(remove);
+
+        timesWrap.appendChild(row);
+        refreshEmpty();
+      }
+
+      if (addBtn) addBtn.addEventListener('click', function () { addTimeRow(); });
+      var initial = [];
+      try { initial = JSON.parse(timesWrap.getAttribute('data-initial') || '[]'); } catch (e) { initial = []; }
+      initial.forEach(function (t) { addTimeRow(t); });
+      refreshEmpty();
+    })();
+  </script>
+</div>
+{% endblock %}

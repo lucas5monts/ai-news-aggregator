@@ -1,59 +1,101 @@
 {% extends "base.html" %}
-{% block title %}Feed — AI News{% endblock %}
+{% block title %}Feed — Daily Brief{% endblock %}
 
 {% block content %}
-<div class="mb-8 sm:mb-10">
+<div class="mb-6 sm:mb-8">
   <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
     <div>
       <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Live dashboard</p>
       <h1 class="font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">
-        Today's AI Feed
+        Today's Top News
       </h1>
-      <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-2 max-w-xl">
-        Top stories from OpenAI, DeepMind, TechCrunch, Wired, and more — ranked and deduped for you.
-      </p>
     </div>
-    <button
-      hx-post="{{ url_for('main.feed_refresh') }}"
-      hx-target="#feed-items"
-      hx-swap="innerHTML"
-      hx-indicator="#refresh-spinner"
-      class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
-             bg-zinc-900 dark:bg-white text-white dark:text-zinc-900
-             hover:bg-zinc-800 dark:hover:bg-zinc-100 shadow-lg shadow-zinc-900/10 dark:shadow-none
-             transition-all active:scale-[0.98] shrink-0">
-      <span id="refresh-spinner" class="htmx-indicator">
-        <i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i>
-      </span>
-      <i data-lucide="refresh-cw" class="w-4 h-4 htmx-hide-on-request"></i>
-      Refresh feed
-    </button>
+    <div class="flex flex-col items-end gap-2 shrink-0">
+      <div id="refresh-status" class="hidden text-xs text-indigo-500 dark:text-indigo-400 font-medium
+                                      flex items-center gap-2 animate-pulse">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span id="refresh-status-text">Reading sources…</span>
+      </div>
+      <button
+        hx-post="{{ url_for('main.feed_refresh', category=selected_category) }}"
+        hx-target="#feed-items"
+        hx-swap="innerHTML"
+        hx-indicator="#refresh-spinner"
+        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
+               bg-zinc-900 dark:bg-white text-white dark:text-zinc-900
+               hover:bg-zinc-800 dark:hover:bg-zinc-100 shadow-lg shadow-zinc-900/10 dark:shadow-none
+               transition-all active:scale-[0.98] shrink-0">
+        <span id="refresh-spinner" class="htmx-indicator">
+          <i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i>
+        </span>
+        <i data-lucide="refresh-cw" class="w-4 h-4 htmx-hide-on-request"></i>
+        Refresh feed
+      </button>
+    </div>
   </div>
 </div>
 
-<!-- Subscribe CTA -->
-<div class="mb-8 rounded-2xl overflow-hidden border border-indigo-200/60 dark:border-indigo-500/20
-            bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10
-            dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-fuchsia-500/10 p-5 sm:p-6
-            flex flex-col sm:flex-row sm:items-center gap-4">
-  <div class="flex items-start gap-4 flex-1">
-    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/25">
-      <i data-lucide="mail" class="w-6 h-6 text-white"></i>
-    </div>
-    <div>
-      <h2 class="font-display font-bold text-base sm:text-lg text-zinc-900 dark:text-white">Get this in your inbox</h2>
-      <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5">Morning & evening digests. No login required.</p>
-    </div>
-  </div>
-  <a href="{{ url_for('subscriptions.subscribe') }}"
-     class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-            bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition-all shrink-0">
-    Subscribe free
-    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+<!-- Category filter bar -->
+{% if categories %}
+<div class="mb-6 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+  <a href="{{ url_for('main.feed') }}"
+     class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-colors
+            {% if not selected_category %}bg-indigo-600 text-white{% else %}bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800{% endif %}">
+    All
   </a>
+  {% for cat in categories %}
+  <a href="{{ url_for('main.feed', category=cat) }}"
+     class="px-3.5 py-1.5 rounded-full text-xs font-semibold capitalize whitespace-nowrap shrink-0 transition-colors
+            {% if selected_category == cat %}bg-indigo-600 text-white{% else %}bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800{% endif %}">
+    {{ cat }}
+  </a>
+  {% endfor %}
 </div>
+{% endif %}
 
 <div id="feed-items">
   {% include "feed_items.html" %}
 </div>
+
+<script>
+  (function () {
+    var feedPersonalized = {{ (ai_meta.personalized if ai_meta else false) | tojson }};
+    var refreshMessages = feedPersonalized
+      ? [
+          'Reading sources…',
+          'Fetching latest stories…',
+          'Scoring against your interests…',
+          'Ranking and deduping…',
+          'Almost done…',
+        ]
+      : [
+          'Reading sources…',
+          'Fetching latest stories…',
+          'Ranking and deduping…',
+          'Almost done…',
+        ];
+    var refreshStatusEl = document.getElementById('refresh-status');
+    var refreshStatusText = document.getElementById('refresh-status-text');
+    var refreshMsgTimer = null;
+    var refreshMsgIndex = 0;
+
+    document.body.addEventListener('htmx:sendingRequest', function (e) {
+      var path = (e.detail.pathInfo && e.detail.pathInfo.requestPath) || '';
+      if (path.indexOf('/feed/refresh') === -1) return;
+      refreshMsgIndex = 0;
+      refreshStatusEl.classList.remove('hidden');
+      refreshStatusText.textContent = refreshMessages[0];
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      refreshMsgTimer = setInterval(function () {
+        refreshMsgIndex = (refreshMsgIndex + 1) % refreshMessages.length;
+        refreshStatusText.textContent = refreshMessages[refreshMsgIndex];
+      }, 1800);
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function () {
+      clearInterval(refreshMsgTimer);
+      refreshStatusEl.classList.add('hidden');
+    });
+  })();
+</script>
 {% endblock %}

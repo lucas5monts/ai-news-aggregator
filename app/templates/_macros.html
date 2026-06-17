@@ -24,28 +24,33 @@
   bg-gradient-to-br {{ gradients.get(source_name, 'from-indigo-600 via-violet-600 to-fuchsia-700') }}
 {% endmacro %}
 
+{% macro topic_match_chip(story) %}
+  {% if story.matched_topic %}
+  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
+               bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
+    <i data-lucide="sparkles" class="w-2.5 h-2.5"></i>
+    {{ story.matched_topic }}
+  </span>
+  {% endif %}
+{% endmacro %}
+
 {% macro story_image(story, aspect_class='aspect-[16/10]', icon_size='w-10 h-10') %}
-  {% set thumb = story.image_url | card_image %}
+  {% set thumb = (story.image_url | card_image) or (story.source_name | placeholder_image(story.source_category)) %}
   <div class="{{ aspect_class }} relative overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-    {% if thumb %}
     <img src="{{ thumb }}"
          alt=""
          loading="eager"
          referrerpolicy="no-referrer"
+         data-fallback="{{ story.source_name | placeholder_image(story.source_category) }}"
          class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-    {% endif %}
-    <div class="absolute inset-0 {% if thumb %}hidden{% else %}flex{% endif %} items-center justify-center {{ source_gradient(story.source_name) }}">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_50%)]"></div>
-      <i data-lucide="sparkles" class="{{ icon_size }} text-white/90 relative drop-shadow"></i>
-    </div>
-    <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60"></div>
+         onerror="if(this.src!==this.dataset.fallback){this.onerror=null;this.src=this.dataset.fallback;}">
+    <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 pointer-events-none"></div>
   </div>
 {% endmacro %}
 
 {% macro story_card(story, featured=false) %}
   <article class="group h-full">
-    <a href="{{ story.url }}" target="_blank" rel="noopener noreferrer"
+    <a href="{{ story.url | safe_url }}" target="_blank" rel="noopener noreferrer"
        class="flex flex-col h-full overflow-hidden rounded-2xl border border-zinc-200/80 dark:border-zinc-800
               bg-white dark:bg-zinc-900/60 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5
               dark:hover:shadow-indigo-500/10 hover:-translate-y-0.5 transition-all duration-300">
@@ -53,6 +58,7 @@
       <div class="flex flex-col flex-1 p-4 {% if featured %}sm:p-5{% endif %}">
         <div class="flex items-center gap-2 mb-2 flex-wrap">
           {{ category_badge(story.source_category) }}
+          {{ topic_match_chip(story) }}
           <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ story.source_name }}</span>
           <span class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-auto">{{ story.published_at | time_ago }}</span>
         </div>
@@ -70,6 +76,130 @@
           Also in {{ story.alt_sources | join(', ') }}
         </p>
         {% endif %}
+      </div>
+    </a>
+  </article>
+{% endmacro %}
+
+{# Large lead story — magazine hero. Image left, text right on desktop. #}
+{% macro hero_card(story) %}
+  <article class="group h-full">
+    <a href="{{ story.url | safe_url }}" target="_blank" rel="noopener noreferrer"
+       class="grid lg:grid-cols-2 h-full overflow-hidden rounded-3xl border border-zinc-200/80 dark:border-zinc-800
+              bg-white dark:bg-zinc-900/60 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10
+              dark:hover:shadow-indigo-500/10 transition-all duration-300">
+      <div class="lg:h-full">
+        {{ story_image(story, 'aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[340px]', 'w-16 h-16') }}
+      </div>
+      <div class="flex flex-col justify-center p-6 lg:p-10">
+        <div class="flex items-center gap-2.5 mb-4 flex-wrap">
+          {{ category_badge(story.source_category) }}
+          {{ topic_match_chip(story) }}
+          <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">{{ story.source_name }}</span>
+          <span class="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">{{ story.published_at | time_ago }}</span>
+        </div>
+        <h2 class="font-display font-bold leading-[1.1] tracking-tight text-zinc-900 dark:text-zinc-50
+                   group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors
+                   text-2xl sm:text-3xl lg:text-4xl">
+          {{ story.title }}
+        </h2>
+        {% if story.summary %}
+        <p class="text-base text-zinc-600 dark:text-zinc-400 leading-relaxed mt-4 line-clamp-4">
+          {{ story.summary }}
+        </p>
+        {% endif %}
+        {% if story.llm_score %}
+        <div class="flex items-center gap-2 mt-3">
+          <span class="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Relevance</span>
+          <div class="flex-1 h-1 rounded-full bg-zinc-200 dark:bg-zinc-700 max-w-[80px]">
+            <div class="h-1 rounded-full bg-indigo-500"
+                 style="width: {{ (story.llm_score * 100) | int }}%"></div>
+          </div>
+          <span class="text-[10px] text-zinc-400">{{ (story.llm_score * 100) | int }}%</span>
+        </div>
+        {% endif %}
+        <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 mt-6">
+          Read story
+          <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform"></i>
+        </span>
+      </div>
+    </a>
+  </article>
+{% endmacro %}
+
+{# Portrait hero — image fills card, title overlaid at bottom. #}
+{% macro hero_card_portrait(story) %}
+  <article class="group h-full">
+    <a href="{{ story.url | safe_url }}" target="_blank" rel="noopener noreferrer"
+       class="relative flex flex-col h-full min-h-[420px] overflow-hidden rounded-3xl
+              border border-zinc-200/80 dark:border-zinc-800 shadow-sm
+              hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300">
+      {% set thumb = (story.image_url | card_image) or (story.source_name | placeholder_image(story.source_category)) %}
+      <img src="{{ thumb }}"
+           alt=""
+           loading="eager"
+           referrerpolicy="no-referrer"
+           data-fallback="{{ story.source_name | placeholder_image(story.source_category) }}"
+           class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+           onerror="if(this.src!==this.dataset.fallback){this.onerror=null;this.src=this.dataset.fallback;}">
+      <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none"></div>
+      <div class="relative mt-auto p-6">
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+          {{ category_badge(story.source_category) }}
+          {{ topic_match_chip(story) }}
+          <span class="text-xs text-white/70 ml-auto">{{ story.published_at | time_ago }}</span>
+        </div>
+        <h2 class="font-display font-bold leading-tight tracking-tight text-white
+                   group-hover:text-indigo-300 transition-colors text-2xl sm:text-3xl">
+          {{ story.title }}
+        </h2>
+        {% if story.summary %}
+        <p class="text-sm text-white/75 leading-relaxed mt-2 line-clamp-2">
+          {{ story.summary }}
+        </p>
+        {% endif %}
+        <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-300 mt-4">
+          Read story
+          <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform"></i>
+        </span>
+      </div>
+    </a>
+  </article>
+{% endmacro %}
+
+{# Ad placeholder. Swap the inner markup for real ad/embed code when ready. #}
+{% macro ad_slot(min_height='min-h-[250px]', label='Advertisement', extra='') %}
+  <div class="{{ extra }}">
+    <p class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-2 text-center">{{ label }}</p>
+    <div class="{{ min_height }} flex items-center justify-center rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-900/40 text-zinc-400 dark:text-zinc-600">
+      {# AD SLOT — paste ad network / embed code here #}
+      <div class="flex flex-col items-center gap-1.5 text-center px-4">
+        <i data-lucide="megaphone" class="w-5 h-5"></i>
+        <span class="text-xs">Ad space available</span>
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
+{# Compact headline row — thumbnail + title, for the side rail next to the hero. #}
+{% macro story_list_item(story) %}
+  <article class="group">
+    <a href="{{ story.url | safe_url }}" target="_blank" rel="noopener noreferrer"
+       class="flex items-start gap-4 py-4">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+          {{ category_badge(story.source_category) }}
+          {{ topic_match_chip(story) }}
+          <span class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-auto">{{ story.published_at | time_ago }}</span>
+        </div>
+        <h3 class="font-semibold leading-snug text-[15px] text-zinc-900 dark:text-zinc-50
+                   group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
+          {{ story.title }}
+        </h3>
+        <span class="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mt-1">{{ story.source_name }}</span>
+      </div>
+      <div class="w-20 h-20 shrink-0 rounded-xl overflow-hidden">
+        {{ story_image(story, 'w-20 h-20', 'w-6 h-6') }}
       </div>
     </a>
   </article>

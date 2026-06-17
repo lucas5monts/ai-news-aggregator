@@ -1,35 +1,18 @@
 # Runtime settings for the news aggregator.
 
 # Maximum stories to include in any single digest
-max_stories: 15
+max_stories: 20
 
 # Only include stories published within the last N hours
-# (morning edition = 24h, evening = ~12h, set by main.py)
+# (morning edition = 24h, evening = ~12h, set by the scheduler)
 default_time_window_hours: 24
 
-# AI-relevance keyword filter. A story passes if ANY of these appear in
-# the title or summary (case-insensitive). Set to an empty list to disable.
-relevance_keywords:
-  - ai
-  - artificial intelligence
-  - machine learning
-  - llm
-  - gpt
-  - claude
-  - gemini
-  - llama
-  - mistral
-  - openai
-  - anthropic
-  - deepmind
-  - hugging face
-  - transformer
-  - neural network
-  - deep learning
-  - agent
-  - rag
-  - fine-tun
-  - inference
+# LLM personalization. Each subscriber's digest is scored against their
+# interest topics (see core/relevance.py). The public feed is unfiltered.
+llm:
+  relevance_threshold: 0.4     # drop stories scored below this (0.0-1.0)
+  max_stories_to_score: 50     # cap sent to the LLM per call (token control)
+  fallback_to_all: true        # if the LLM fails, show all stories rather than none
 
 # Digest format
 digest:
@@ -38,7 +21,11 @@ digest:
   max_summary_chars: 280
   group_by_category: true
   category_order:
-    - industry
-    - research
-    - tools
-    - policy
+    - world
+    - us
+    - tech
+    - ai
+    - business
+    - science
+    - politics
+    - sports

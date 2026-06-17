@@ -88,47 +88,126 @@
 
   <div id="htmx-progress"></div>
 
+  {% set nav_items = [
+    ('main.feed', 'rss', 'Feed'),
+    ('main.preview', 'eye', 'Preview'),
+  ] %}
+  {% set categories = ['world', 'us', 'tech', 'ai', 'business', 'science', 'politics', 'sports'] %}
+
+  <!-- Top utility bar -->
+  <div class="hidden sm:block border-b border-zinc-200/60 dark:border-zinc-800/70 bg-zinc-50/80 dark:bg-zinc-950/80">
+    <div class="w-full px-4 sm:px-6 lg:px-10 xl:px-16 h-9 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+      <span class="font-medium">Your daily AI digest — ranked, deduped, delivered.</span>
+      <div class="flex items-center gap-5">
+        <a href="#" class="hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors">About</a>
+        <a href="#" class="hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors">Advertise</a>
+        <a href="#" class="hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors">Contact</a>
+        <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main header -->
   <header class="sticky top-0 z-20 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
-    {% set nav_items = [
-      ('main.feed', 'rss', 'Feed'),
-      ('main.preview', 'eye', 'Preview'),
-      ('subscriptions.subscribe', 'mail', 'Subscribe'),
-    ] %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-      <a href="{{ url_for('main.feed') }}" class="flex items-center gap-2.5 shrink-0 group">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/30 group-hover:scale-105 transition-transform">
-          <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
-        </div>
-        <div class="leading-tight">
-          <span class="font-display font-bold text-sm tracking-tight block">AI News</span>
-          <span class="text-[10px] text-zinc-500 dark:text-zinc-400 hidden sm:block">Curated daily digest</span>
-        </div>
-      </a>
-
-      <nav class="hidden md:flex items-center gap-1 p-1 rounded-xl bg-zinc-100/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800">
-        {% for endpoint, icon, label in nav_items %}
-        <a href="{{ url_for(endpoint) }}"
-           class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all
-                  {% if request.endpoint == endpoint %}nav-link-active text-indigo-700 dark:text-indigo-300{% else %}text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-white/60 dark:hover:bg-zinc-800/60{% endif %}">
-          <i data-lucide="{{ icon }}" class="w-3.5 h-3.5"></i>
-          {{ label }}
+    <div class="w-full px-4 sm:px-6 lg:px-10 xl:px-16 h-16 flex items-center justify-between gap-4">
+      <!-- Left: logo + primary nav -->
+      <div class="flex items-center gap-6">
+        <a href="{{ url_for('main.feed') }}" class="flex items-center gap-2.5 shrink-0 group">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+            <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+          </div>
+          <div class="leading-tight">
+            <span class="font-display font-bold text-base tracking-tight block">AI News</span>
+            <span class="text-[10px] text-zinc-500 dark:text-zinc-400 hidden sm:block">Curated daily digest</span>
+          </div>
         </a>
-        {% endfor %}
-      </nav>
 
-      <button id="theme-toggle"
-              class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400
-                     bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800
-                     hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shrink-0"
-              title="Toggle theme">
-        <i id="theme-icon-sun" data-lucide="sun" class="w-4 h-4 hidden"></i>
-        <i id="theme-icon-moon" data-lucide="moon" class="w-4 h-4 hidden"></i>
-        <i id="theme-icon-monitor" data-lucide="monitor" class="w-4 h-4 hidden"></i>
-      </button>
+        <nav class="hidden lg:flex items-center gap-1">
+          {% for endpoint, icon, label in nav_items %}
+          <a href="{{ url_for(endpoint) }}"
+             class="px-3 py-2 rounded-lg text-sm font-medium transition-all
+                    {% if request.endpoint == endpoint %}text-indigo-600 dark:text-indigo-400{% else %}text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100{% endif %}">
+            {{ label }}
+          </a>
+          {% endfor %}
+
+          <!-- Categories dropdown -->
+          <div class="relative group">
+            <button class="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all">
+              Categories
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5 group-hover:rotate-180 transition-transform"></i>
+            </button>
+            <div class="absolute left-0 top-full pt-2 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200">
+              <div class="w-52 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-900/10 p-1.5">
+                {% for cat in categories %}
+                <a href="{{ url_for('main.feed') }}#{{ cat }}"
+                   class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium capitalize text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                  <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                  {{ cat }}
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Right: search + subscribe + theme -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button class="hidden md:flex items-center gap-2 px-3 py-2 w-44 lg:w-56 rounded-xl text-sm text-zinc-400 dark:text-zinc-500
+                       bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800
+                       hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                title="Search">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span>Search…</span>
+        </button>
+
+        <a href="{{ url_for('subscriptions.subscribe') }}"
+           class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                  bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
+                  text-white shadow-md shadow-indigo-600/30 transition-all active:scale-[0.98]">
+          Subscribe
+        </a>
+
+        <nav class="hidden sm:flex items-center gap-3">
+          {% if current_user.is_authenticated %}
+            <a href="{{ url_for('preferences.preferences') }}"
+               class="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
+              Preferences
+            </a>
+            <form method="POST" action="{{ url_for('auth.logout') }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit"
+                      class="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 bg-transparent border-0 cursor-pointer p-0">
+                Log out
+              </button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('auth.login') }}"
+               class="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
+              Log in
+            </a>
+            <a href="{{ url_for('subscriptions.subscribe') }}"
+               class="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+              Subscribe
+            </a>
+          {% endif %}
+        </nav>
+
+        <button id="theme-toggle"
+                class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400
+                       bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800
+                       hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shrink-0"
+                title="Toggle theme">
+          <i id="theme-icon-sun" data-lucide="sun" class="w-4 h-4 hidden"></i>
+          <i id="theme-icon-moon" data-lucide="moon" class="w-4 h-4 hidden"></i>
+          <i id="theme-icon-monitor" data-lucide="monitor" class="w-4 h-4 hidden"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Mobile nav -->
-    <div class="md:hidden border-t border-zinc-200/60 dark:border-zinc-800 px-4 py-2 flex gap-2 overflow-x-auto">
+    <div class="lg:hidden border-t border-zinc-200/60 dark:border-zinc-800 px-4 py-2 flex gap-2 overflow-x-auto">
       {% for endpoint, icon, label in nav_items %}
       <a href="{{ url_for(endpoint) }}"
          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0
@@ -137,10 +216,31 @@
         {{ label }}
       </a>
       {% endfor %}
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('preferences.preferences') }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+        Preferences
+      </a>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+        Log in
+      </a>
+      <a href="{{ url_for('subscriptions.subscribe') }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 bg-indigo-500 text-white">
+        Subscribe
+      </a>
+      {% endif %}
+      {% for cat in categories %}
+      <a href="{{ url_for('main.feed') }}#{{ cat }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold capitalize whitespace-nowrap shrink-0 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+        {{ cat }}
+      </a>
+      {% endfor %}
     </div>
   </header>
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+  <div class="w-full px-4 sm:px-6 lg:px-10 xl:px-16 py-8 sm:py-10">
     <main>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -160,6 +260,68 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  <footer class="border-t border-zinc-200/70 dark:border-zinc-800/80 bg-white/60 dark:bg-zinc-950/60 backdrop-blur-sm mt-8">
+    <div class="w-full px-4 sm:px-6 lg:px-10 xl:px-16 py-12">
+      <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+        <div class="max-w-sm">
+          <a href="{{ url_for('main.feed') }}" class="flex items-center gap-2.5 group">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/30">
+              <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+            </div>
+            <span class="font-display font-bold text-sm tracking-tight">AI News</span>
+          </a>
+          <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-4 leading-relaxed">
+            Your curated daily digest of AI news — ranked, deduped, and delivered. Top stories from across the industry, all in one place.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-4">Product</h3>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="{{ url_for('main.feed') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Feed</a></li>
+            <li><a href="{{ url_for('main.preview') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Digest preview</a></li>
+            <li><a href="{{ url_for('subscriptions.subscribe') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Subscribe</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-4">Sources</h3>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">OpenAI</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Google DeepMind</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">TechCrunch</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">All sources</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-4">Company</h3>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">About</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Privacy</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Terms</a></li>
+            <li><a href="#" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-12 pt-6 border-t border-zinc-200/70 dark:border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-zinc-500 dark:text-zinc-400">© {{ now().year if now is defined else 2026 }} AI News. All rights reserved.</p>
+        <div class="flex items-center gap-3">
+          <a href="#" aria-label="Twitter" class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+            <i data-lucide="twitter" class="w-4 h-4"></i>
+          </a>
+          <a href="#" aria-label="GitHub" class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+            <i data-lucide="github" class="w-4 h-4"></i>
+          </a>
+          <a href="#" aria-label="RSS" class="w-9 h-9 flex items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+            <i data-lucide="rss" class="w-4 h-4"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <script>
     lucide.createIcons();

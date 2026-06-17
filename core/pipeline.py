@@ -33,6 +33,8 @@ class Story:
     published_at: datetime
     score: float = 0.0
     image_url: str | None = None
+    matched_topic: str | None = None  # user interest that best matched this story
+    llm_score: float | None = None  # raw LLM relevance score (0.0–1.0)
     # Phase 2: alt_sources collects other sources covering the same story
     alt_sources: list[str] = field(default_factory=list)
 
@@ -94,29 +96,65 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+_IMG_EXT_RE = re.compile(r"\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)", re.I)
+_IMG_TAG_RE = re.compile(r"""<img[^>]+src=["']([^"']+)["']""", re.I)
+
+
+def _looks_like_image(url: str) -> bool:
+    return bool(url) and bool(_IMG_EXT_RE.search(url))
+
+
 def _extract_image(entry: dict[str, Any]) -> str | None:
-    """Best-effort thumbnail from RSS media tags or embedded HTML."""
+    """Best-effort thumbnail from RSS media tags or embedded HTML.
+
+    Checks every common place feeds stash a hero image, in rough order of
+    reliability, so as many stories as possible get a real picture before we
+    fall back to a live og:image fetch.
+    """
+    # 1. Media RSS thumbnail
     for thumb in entry.get("media_thumbnail") or []:
         url = thumb.get("url")
         if url:
             return url
 
+    # 2. Media RSS content (image medium/type, or an image-looking URL)
     for media in entry.get("media_content") or []:
         url = media.get("url")
         medium = media.get("medium", "")
         mtype = media.get("type", "")
-        if url and (medium == "image" or str(mtype).startswith("image/")):
+        if url and (medium == "image" or str(mtype).startswith("image/") or _looks_like_image(url)):
             return url
 
+    # 3. Enclosures (podcast/news feeds often attach the hero here)
     for enc in entry.get("enclosures") or []:
         href = enc.get("href") or enc.get("url")
-        if href and str(enc.get("type", "")).startswith("image/"):
+        if href and (str(enc.get("type", "")).startswith("image/") or _looks_like_image(href)):
             return href
 
-    html = entry.get("summary") or entry.get("description") or ""
-    match = re.search(r"""<img[^>]+src=["']([^"']+)["']""", html, re.I)
-    if match:
-        return match.group(1)
+    # 4. Atom <link rel="enclosure"> image links
+    for link in entry.get("links") or []:
+        href = link.get("href")
+        if href and link.get("rel") == "enclosure" and (
+            str(link.get("type", "")).startswith("image/") or _looks_like_image(href)
+        ):
+            return href
+
+    # 5. feedparser's parsed entry.image
+    image = entry.get("image")
+    if isinstance(image, dict):
+        href = image.get("href") or image.get("url")
+        if href:
+            return href
+
+    # 6. First <img> in summary / description / full content HTML
+    html_blobs = [entry.get("summary") or "", entry.get("description") or ""]
+    for content in entry.get("content") or []:
+        if isinstance(content, dict) and content.get("value"):
+            html_blobs.append(content["value"])
+    for html in html_blobs:
+        match = _IMG_TAG_RE.search(html)
+        if match:
+            return match.group(1)
 
     return None
 

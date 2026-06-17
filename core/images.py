@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import asyncio
 import html
+import ipaddress
 import logging
 import re
+import socket
 import time
 from urllib.parse import urljoin, urlparse
 
@@ -19,7 +21,7 @@ from .pipeline import Story
 
 log = logging.getLogger(__name__)
 
-READ_LIMIT_BYTES = 256_000
+READ_LIMIT_BYTES = 384_000
 FETCH_TIMEOUT_SECONDS = 8
 MAX_CONCURRENT = 6
 CACHE_TTL_HIT = 86_400   # 24h for successful lookups
@@ -38,6 +40,15 @@ _META_IMAGE_REV = re.compile(
 )
 _LINK_IMAGE = re.compile(
     r"""<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']""",
+    re.I,
+)
+_ITEMPROP_IMAGE = re.compile(
+    r"""<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["']""",
+    re.I,
+)
+# JSON-LD "image": "https://..."  or  "image": ["https://...", ...]
+_JSONLD_IMAGE = re.compile(
+    r""""image"\s*:\s*(?:\[\s*)?["'](https?://[^"']+)["']""",
     re.I,
 )
 
@@ -81,7 +92,7 @@ def _normalize_image_url(raw: str, page_url: str) -> str | None:
 
 def parse_og_image(html: str, page_url: str) -> str | None:
     """Extract the best social preview image from partial page HTML."""
-    for pattern in (_META_IMAGE, _META_IMAGE_REV, _LINK_IMAGE):
+    for pattern in (_META_IMAGE, _META_IMAGE_REV, _LINK_IMAGE, _ITEMPROP_IMAGE, _JSONLD_IMAGE):
         match = pattern.search(html)
         if match:
             url = _normalize_image_url(match.group(1), page_url)
@@ -90,7 +101,25 @@ def parse_og_image(html: str, page_url: str) -> str | None:
     return None
 
 
+def _is_safe_url(url: str) -> bool:
+    """Return False if the URL resolves to a private/loopback/link-local IP."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = parsed.hostname
+        if not host:
+            return False
+        ip = ipaddress.ip_address(socket.gethostbyname(host))
+        return ip.is_global and not ip.is_private and not ip.is_loopback and not ip.is_link_local and not ip.is_reserved
+    except Exception:
+        return False
+
+
 async def _fetch_og_one(client: httpx.AsyncClient, article_url: str) -> str | None:
+    if not _is_safe_url(article_url):
+        return None
+
     cached = _cache_get(article_url)
     if not isinstance(cached, _CacheMiss):
         return cached

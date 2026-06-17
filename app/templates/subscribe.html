@@ -12,11 +12,11 @@
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(0,0,0,0.2),transparent_40%)]"></div>
         <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
           <p class="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-2">Daily digest</p>
-          <h2 class="font-display text-2xl sm:text-3xl font-bold leading-tight">AI news, curated & delivered</h2>
-          <p class="text-sm text-white/80 mt-3 leading-relaxed">The best stories from top sources — ranked, deduped, and formatted for your inbox.</p>
+          <h2 class="font-display text-2xl sm:text-3xl font-bold leading-tight">News that matches your interests</h2>
+          <p class="text-sm text-white/80 mt-3 leading-relaxed">Tell us what you care about and our AI personalizes every digest — ranked, deduped, and delivered to your inbox.</p>
           <div class="flex flex-wrap gap-2 mt-5">
-            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">6 AM</span>
-            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">8 PM</span>
+            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">Your times</span>
+            <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">Your topics</span>
             <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur">Your timezone</span>
           </div>
         </div>
@@ -42,22 +42,125 @@
                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
       </div>
 
-      <div class="space-y-2.5">
+      <div>
+        <label for="password" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+          Password
+        </label>
+        <input type="password" id="password" name="password" required
+               minlength="8" autocomplete="new-password"
+               placeholder="At least 8 characters"
+               class="w-full rounded-xl border border-zinc-300 dark:border-zinc-700
+                      bg-white dark:bg-zinc-900 px-3.5 py-2.5 text-sm
+                      text-zinc-900 dark:text-zinc-100 placeholder-zinc-400
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500
+                      transition">
+      </div>
+
+      <div>
+        <label for="confirm_password" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+          Confirm password
+        </label>
+        <input type="password" id="confirm_password" name="confirm_password" required
+               minlength="8" autocomplete="new-password"
+               class="w-full rounded-xl border border-zinc-300 dark:border-zinc-700
+                      bg-white dark:bg-zinc-900 px-3.5 py-2.5 text-sm
+                      text-zinc-900 dark:text-zinc-100 placeholder-zinc-400
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500
+                      transition">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your interests <span class="text-zinc-400 font-normal">(optional)</span></label>
+        <p class="text-xs text-zinc-400 mb-3">Click topics to add them, or type your own below. Leave blank for top general news.</p>
+
+        <!-- Selected tags -->
+        <div id="topic-tags" class="flex flex-wrap gap-2 mb-2 empty:mb-0"></div>
+
+        <!-- Custom input -->
+        <input type="text" id="topic-input" autocomplete="off"
+               placeholder="Type a topic and press Enter..."
+               class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+
+        <!-- Quick picks -->
+        <div class="mt-4 space-y-3">
+          {% set topic_groups = [
+            ('Quick picks', ['World News', 'US News', 'Politics', 'Business', 'Science', 'Health', 'Climate', 'Technology']),
+            ('Sports', ['NBA', 'NFL', 'Soccer', 'Formula 1', 'Tennis', 'MLB']),
+            ('Culture', ['AI & Machine Learning', 'Space', 'Finance', 'Crypto', 'Entertainment', 'Food']),
+          ] %}
+          {% for group_label, chips in topic_groups %}
+          <div>
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1.5">{{ group_label }}</p>
+            <div class="flex flex-wrap gap-2">
+              {% for chip in chips %}
+              <button type="button" data-topic="{{ chip }}"
+                      class="topic-chip px-3 py-1.5 rounded-full text-xs font-medium border border-zinc-200 dark:border-zinc-700
+                             text-zinc-600 dark:text-zinc-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40
+                             hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
+                {{ chip }}
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <input type="hidden" name="topics" id="topics-hidden" value="">
+      </div>
+
+      <div class="space-y-3">
         <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery schedule</p>
-        <label class="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-          <input type="checkbox" name="morning_enabled" checked class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
-          <div>
-            <span class="text-sm font-medium block">Morning digest</span>
-            <span class="text-xs text-zinc-500">6:00 AM in your timezone</span>
+
+        <!-- Morning slot -->
+        <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" name="morning_enabled" id="morning_enabled" checked
+                   class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+            <div class="flex-1">
+              <span class="text-sm font-medium block">Morning digest</span>
+              <span class="text-xs text-zinc-500">Delivered once daily in your timezone</span>
+            </div>
+            <input type="time" name="morning_time" id="morning_time" value="06:00"
+                   class="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1
+                          bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                          disabled:opacity-40 disabled:cursor-not-allowed">
+          </label>
+        </div>
+
+        <!-- Evening slot -->
+        <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" name="evening_enabled" id="evening_enabled"
+                   class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
+            <div class="flex-1">
+              <span class="text-sm font-medium block">Evening digest</span>
+              <span class="text-xs text-zinc-500">Delivered once daily in your timezone</span>
+            </div>
+            <input type="time" name="evening_time" id="evening_time" value="20:00"
+                   class="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1
+                          bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                          disabled:opacity-40 disabled:cursor-not-allowed">
+          </label>
+        </div>
+
+        <!-- Custom times -->
+        <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <span class="text-sm font-medium block">Custom times</span>
+              <span class="text-xs text-zinc-500">Add your own special delivery times</span>
+            </div>
+            <button type="button" id="add-time"
+                    class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400
+                           hover:underline inline-flex items-center gap-1">
+              + Add time
+            </button>
           </div>
-        </label>
-        <label class="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-          <input type="checkbox" name="evening_enabled" class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500">
-          <div>
-            <span class="text-sm font-medium block">Evening digest</span>
-            <span class="text-xs text-zinc-500">8:00 PM in your timezone</span>
-          </div>
-        </label>
+          <div id="custom-times" class="flex flex-wrap gap-2 mt-3 empty:mt-0"
+               data-initial='{{ initial_times | tojson }}'></div>
+          <p id="custom-times-empty" class="text-xs text-zinc-400 mt-2">None yet — your brief arrives only at the times above.</p>
+        </div>
       </div>
 
       <div>
@@ -72,9 +175,176 @@
               class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
                      text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-lg shadow-indigo-600/25
                      transition-all active:scale-[0.98]">
-        Subscribe to daily AI news
+        Create account
       </button>
+
+      <p class="text-xs text-center text-zinc-500 dark:text-zinc-400">
+        Already subscribed?
+        <a href="{{ url_for('auth.login') }}"
+           class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Log in</a>
+      </p>
     </form>
   </div>
 </div>
+
+<script>
+  (function () {
+    var MAX_TOPICS = 20;
+    var MAX_TOPIC_LEN = 80;
+
+    var tagsRow = document.getElementById('topic-tags');
+    var customInput = document.getElementById('topic-input');
+    var hidden = document.getElementById('topics-hidden');
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.topic-chip'));
+
+    var selected = [];  // preserves insertion order
+
+    function chipFor(topic) {
+      var key = topic.toLowerCase();
+      for (var i = 0; i < chips.length; i++) {
+        if (chips[i].getAttribute('data-topic').toLowerCase() === key) return chips[i];
+      }
+      return null;
+    }
+
+    function setChipActive(chip, active) {
+      if (!chip) return;
+      chip.classList.toggle('bg-indigo-600', active);
+      chip.classList.toggle('text-white', active);
+      chip.classList.toggle('border-indigo-600', active);
+    }
+
+    function syncHidden() {
+      hidden.value = selected.join(',');
+    }
+
+    function render() {
+      tagsRow.innerHTML = '';
+      selected.forEach(function (topic) {
+        var tag = document.createElement('span');
+        tag.className = 'inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium ' +
+          'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ' +
+          'border border-indigo-200 dark:border-indigo-800';
+
+        var label = document.createElement('span');
+        label.textContent = topic;
+        tag.appendChild(label);
+
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Remove ' + topic);
+        remove.className = 'w-4 h-4 inline-flex items-center justify-center rounded-full ' +
+          'hover:bg-indigo-200/70 dark:hover:bg-indigo-800/70 transition-colors';
+        remove.textContent = '\u00d7';
+        remove.addEventListener('click', function () { removeTopic(topic); });
+        tag.appendChild(remove);
+
+        tagsRow.appendChild(tag);
+      });
+      syncHidden();
+    }
+
+    function addTopic(raw) {
+      var topic = (raw || '').trim().slice(0, MAX_TOPIC_LEN).trim();
+      if (!topic) return;
+      if (selected.length >= MAX_TOPICS) return;
+      var key = topic.toLowerCase();
+      for (var i = 0; i < selected.length; i++) {
+        if (selected[i].toLowerCase() === key) return;  // already selected
+      }
+      selected.push(topic);
+      setChipActive(chipFor(topic), true);
+      render();
+    }
+
+    function removeTopic(topic) {
+      var key = topic.toLowerCase();
+      selected = selected.filter(function (t) { return t.toLowerCase() !== key; });
+      setChipActive(chipFor(topic), false);
+      render();
+    }
+
+    function toggleTopic(topic) {
+      var key = topic.toLowerCase();
+      var exists = selected.some(function (t) { return t.toLowerCase() === key; });
+      if (exists) removeTopic(topic);
+      else addTopic(topic);
+    }
+
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        toggleTopic(chip.getAttribute('data-topic'));
+      });
+    });
+
+    customInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addTopic(customInput.value);
+        customInput.value = '';
+      }
+    });
+
+    render();
+
+    // Disable a slot's time input when its checkbox is unchecked.
+    ['morning', 'evening'].forEach(function (slot) {
+      var cb = document.getElementById(slot + '_enabled');
+      var ti = document.getElementById(slot + '_time');
+      if (!cb || !ti) return;
+      function sync() { ti.disabled = !cb.checked; }
+      sync();
+      cb.addEventListener('change', sync);
+    });
+
+    // Custom delivery times: add/remove arbitrary "HH:MM" inputs.
+    var MAX_CUSTOM_TIMES = 10;
+    var timesWrap = document.getElementById('custom-times');
+    var timesEmpty = document.getElementById('custom-times-empty');
+    var addBtn = document.getElementById('add-time');
+
+    function refreshEmpty() {
+      if (!timesEmpty) return;
+      timesEmpty.style.display = timesWrap.children.length ? 'none' : '';
+    }
+
+    function addTimeRow(value) {
+      if (timesWrap.children.length >= MAX_CUSTOM_TIMES) return;
+      var row = document.createElement('span');
+      row.className = 'inline-flex items-center gap-1 rounded-lg border border-zinc-200 ' +
+        'dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 pl-2 pr-1 py-1';
+
+      var input = document.createElement('input');
+      input.type = 'time';
+      input.name = 'custom_times';
+      input.value = value || '12:00';
+      input.className = 'text-sm bg-transparent focus:outline-none';
+      row.appendChild(input);
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', 'Remove time');
+      remove.className = 'w-5 h-5 inline-flex items-center justify-center rounded ' +
+        'text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors';
+      remove.textContent = '\u00d7';
+      remove.addEventListener('click', function () {
+        row.remove();
+        refreshEmpty();
+      });
+      row.appendChild(remove);
+
+      timesWrap.appendChild(row);
+      refreshEmpty();
+      input.focus();
+    }
+
+    if (addBtn) addBtn.addEventListener('click', function () { addTimeRow(); });
+
+    // Pre-populate any server-provided times from the safe data attribute.
+    var initial = [];
+    try { initial = JSON.parse(timesWrap.getAttribute('data-initial') || '[]'); } catch (e) { initial = []; }
+    initial.forEach(function (t) { addTimeRow(t); });
+    refreshEmpty();
+  })();
+</script>
 {% endblock %}
