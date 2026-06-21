@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_macros.html" import story_card with context %}
+{% block title %}Search{% if query %} — {{ query }}{% endif %} — AI News{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Search</p>
+  <h1 class="font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white mb-6">
+    {% if query %}Results for "{{ query }}"{% else %}Search stories{% endif %}
+  </h1>
+
+  <form method="GET" action="{{ url_for('main.search') }}" class="flex gap-2 max-w-2xl">
+    <div class="flex-1 relative">
+      <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none"></i>
+      <input
+        type="text"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search AI news…"
+        autofocus
+        class="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm
+               bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800
+               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+               text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 transition-all">
+    </div>
+    <button type="submit"
+            class="px-5 py-2.5 rounded-xl text-sm font-semibold
+                   bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
+                   text-white shadow-md shadow-indigo-600/30 transition-all active:scale-[0.98]">
+      Search
+    </button>
+  </form>
+</div>
+
+{% if query %}
+  {% if stories %}
+  <div class="flex items-center gap-3 mb-6">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300 shadow-sm">
+      <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      {{ story_count }} result{{ 's' if story_count != 1 else '' }}
+    </div>
+  </div>
+
+  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {% for story in stories %}
+      {{ story_card(story) }}
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="text-center py-24 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+    <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-zinc-400 to-zinc-600 flex items-center justify-center mx-auto mb-5 shadow-lg">
+      <i data-lucide="search-x" class="w-8 h-8 text-white"></i>
+    </div>
+    <p class="text-lg font-semibold text-zinc-800 dark:text-zinc-200">No results for "{{ query }}"</p>
+    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+      Try different keywords or browse the <a href="{{ url_for('main.feed') }}" class="text-indigo-500 hover:underline">live feed</a>.
+    </p>
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

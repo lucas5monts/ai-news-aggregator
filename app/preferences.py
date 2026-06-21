@@ -1,7 +1,8 @@
-"""Subscriber preferences — edit topics, schedule, and sources (login required)."""
+"""Preferences blueprint — topics, schedule, sources, blocked keywords. Login required."""
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import yaml
@@ -9,10 +10,12 @@ from flask import Blueprint, flash, render_template, request
 from flask_login import current_user, login_required
 
 from app import limiter
-from .models import User, UserSettings, UserSource, db
+from .models import User, UserBlockedKeyword, UserCustomSource, UserSettings, UserSource, db
 from .subscriptions import (
     DEFAULT_TZ,
+    MAX_TOPIC_LEN,
     VALID_TIMEZONES,
+    _TOPIC_SAFE_RE,
     _parse_form_time,
     _seed_user_defaults,
     set_user_digest_times,
@@ -22,6 +25,55 @@ from .subscriptions import (
 log = logging.getLogger(__name__)
 
 preferences_bp = Blueprint("preferences", __name__)
+
+MAX_BLOCKED_KEYWORDS = 50
+MAX_KEYWORD_LEN = 80
+
+
+def parse_blocked_keywords(raw_text: str) -> list[str]:
+    """Parse comma/newline-separated blocked keywords: strip, dedupe, validate, cap."""
+    import re
+    if not raw_text:
+        return []
+    parts = re.split(r"[,\n\r]+", raw_text)
+    seen: set[str] = set()
+    keywords: list[str] = []
+    for part in parts:
+        kw = part.strip()[:MAX_KEYWORD_LEN].strip()
+        if not kw:
+            continue
+        if not _TOPIC_SAFE_RE.match(kw):
+            log.warning("parse_blocked_keywords: rejected %r", kw[:40])
+            continue
+        key = kw.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        keywords.append(kw)
+        if len(keywords) >= MAX_BLOCKED_KEYWORDS:
+            break
+    return keywords
+
+
+def set_user_blocked_keywords(user: User, raw_text: str) -> None:
+    """Overwrite all blocked keywords for a user."""
+    keywords = parse_blocked_keywords(raw_text)
+    db.session.query(UserBlockedKeyword).filter_by(user_id=user.id).delete()
+    for kw in keywords:
+        db.session.add(UserBlockedKeyword(user_id=user.id, keyword=kw))
+
+
+def _validate_feed_url(url: str) -> bool:
+    """Fetch url and check feedparser finds at least one entry (or no parse error)."""
+    try:
+        import feedparser
+        import httpx
+        resp = httpx.get(url, timeout=5, follow_redirects=True)
+        parsed = feedparser.parse(resp.content)
+        return len(parsed.entries) > 0 or not parsed.bozo
+    except Exception as exc:
+        log.debug("_validate_feed_url(%r): %s", url, exc)
+        return False
 
 
 def _load_all_sources() -> list[dict]:
@@ -35,7 +87,7 @@ def _load_all_sources() -> list[dict]:
 
 
 def _render_editor(user: User):
-    """Render the preferences editor pre-filled for *user*."""
+    """Render the preferences form pre-filled for this user."""
     settings = db.session.get(UserSettings, user.id)
     if settings is None:
         _seed_user_defaults(user)
@@ -55,6 +107,12 @@ def _render_editor(user: User):
     ]
     topics = [t.topic for t in user.topics]
     custom_times = sorted(dt.send_time for dt in user.digest_times)
+    blocked_keywords = [k.keyword for k in user.blocked_keywords]
+    custom_sources = db.session.query(UserCustomSource).filter_by(user_id=user.id).all()
+
+    base_url = os.environ.get("APP_BASE_URL", "http://localhost:8080").rstrip("/")
+    referral_link = f"{base_url}/ref/{user.referral_code}" if user.referral_code else ""
+    referral_count = db.session.query(User).filter_by(referred_by_id=user.id).count()
 
     return render_template(
         "preferences.html",
@@ -64,6 +122,10 @@ def _render_editor(user: User):
         sources=sources,
         custom_times=custom_times,
         initial_times=custom_times,
+        blocked_keywords_text=", ".join(blocked_keywords),
+        custom_sources=custom_sources,
+        referral_link=referral_link,
+        referral_count=referral_count,
     )
 
 
@@ -110,6 +172,27 @@ def preferences():
 
         set_user_topics(user, request.form.get("topics", ""))
         set_user_digest_times(user, request.form.getlist("custom_times"))
+        set_user_blocked_keywords(user, request.form.get("blocked_keywords", ""))
+
+        # Custom RSS sources
+        urls = request.form.getlist("custom_source_url")
+        names = request.form.getlist("custom_source_name")
+        db.session.query(UserCustomSource).filter_by(user_id=user.id).delete()
+        for url, name in zip(urls, names):
+            url = url.strip()
+            name = name.strip()
+            if not url or not name:
+                continue
+            if not _validate_feed_url(url):
+                flash(f"Feed URL could not be validated and was skipped: {url}", "error")
+                continue
+            db.session.add(UserCustomSource(
+                user_id=user.id,
+                url=url,
+                name=name,
+                enabled=True,
+            ))
+
         db.session.commit()
         flash("Your preferences have been saved.", "success")
         log.info("preferences updated for user_id=%s", user.id)

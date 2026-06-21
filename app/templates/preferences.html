@@ -27,10 +27,18 @@
       <p class="text-xs text-zinc-400 mt-1.5">Comma- or line-separated. Leave blank for top general news (no personalization).</p>
     </div>
 
+    <div>
+      <label for="blocked_keywords" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Block keywords</label>
+      <textarea id="blocked_keywords" name="blocked_keywords" rows="2"
+                placeholder="e.g. crypto, NFT, Elon Musk"
+                class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-y">{{ blocked_keywords_text }}</textarea>
+      <p class="text-xs text-zinc-400 mt-1.5">Stories whose title or summary contain these words will be hidden. Comma-separated.</p>
+    </div>
+
     <div class="space-y-3">
       <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery schedule</p>
 
-      <!-- Morning slot -->
       <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" name="morning_enabled" id="morning_enabled" {% if settings.morning_enabled %}checked{% endif %}
@@ -46,7 +54,6 @@
         </label>
       </div>
 
-      <!-- Evening slot -->
       <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" name="evening_enabled" id="evening_enabled" {% if settings.evening_enabled %}checked{% endif %}
@@ -62,7 +69,6 @@
         </label>
       </div>
 
-      <!-- Custom times -->
       <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -112,6 +118,36 @@
     </div>
     {% endif %}
 
+    <div class="space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Custom feeds</p>
+          <p class="text-xs text-zinc-400 mt-0.5">Add your own RSS/Atom sources.</p>
+        </div>
+        <button type="button" id="add-custom-source"
+                class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1">
+          + Add feed
+        </button>
+      </div>
+      <div id="custom-sources-list" class="space-y-2">
+        {% for cs in custom_sources %}
+        <div class="custom-source-row flex items-center gap-2">
+          <input type="text" name="custom_source_name" value="{{ cs.name }}" placeholder="Feed name"
+                 class="flex-1 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+          <input type="url" name="custom_source_url" value="{{ cs.url }}" placeholder="https://example.com/feed.xml"
+                 class="flex-[2] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+          <button type="button" onclick="this.closest('.custom-source-row').remove()"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
+                  aria-label="Remove feed">
+            &times;
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
     <button type="submit"
             class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
                    text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-lg shadow-indigo-600/25
@@ -119,6 +155,23 @@
       Save preferences
     </button>
   </form>
+
+  {% if referral_link %}
+  <div class="mt-6 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-6">
+    <h2 class="font-display font-bold text-lg mb-1">Refer a friend</h2>
+    <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+      Share your link. You've referred {{ referral_count }} {{ 'person' if referral_count == 1 else 'people' }} so far.
+    </p>
+    <div class="flex gap-2">
+      <input id="referral-link" type="text" readonly value="{{ referral_link }}"
+             class="flex-1 px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm font-mono text-zinc-600 dark:text-zinc-300">
+      <button onclick="navigator.clipboard.writeText(document.getElementById('referral-link').value).then(function(){var b=this;b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000)}.bind(this))"
+              class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors">
+        Copy
+      </button>
+    </div>
+  </div>
+  {% endif %}
 
   <script nonce="{{ csp_nonce() }}">
     (function () {
@@ -174,6 +227,28 @@
       try { initial = JSON.parse(timesWrap.getAttribute('data-initial') || '[]'); } catch (e) { initial = []; }
       initial.forEach(function (t) { addTimeRow(t); });
       refreshEmpty();
+    })();
+
+    // Custom RSS source rows
+    (function () {
+      var addSourceBtn = document.getElementById('add-custom-source');
+      var sourcesList = document.getElementById('custom-sources-list');
+      if (!addSourceBtn || !sourcesList) return;
+
+      addSourceBtn.addEventListener('click', function () {
+        var row = document.createElement('div');
+        row.className = 'custom-source-row flex items-center gap-2';
+        row.innerHTML =
+          '<input type="text" name="custom_source_name" placeholder="Feed name" ' +
+          'class="flex-1 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">' +
+          '<input type="url" name="custom_source_url" placeholder="https://example.com/feed.xml" ' +
+          'class="flex-[2] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">' +
+          '<button type="button" aria-label="Remove feed" ' +
+          'class="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0">&times;</button>';
+        row.querySelector('button').addEventListener('click', function () { row.remove(); });
+        sourcesList.appendChild(row);
+        row.querySelector('input').focus();
+      });
     })();
   </script>
 </div>

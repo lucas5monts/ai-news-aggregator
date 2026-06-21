@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import story_card with context %}
+{% block title %}Bookmarks — AI News{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Your library</p>
+  <h1 class="font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">
+    Bookmarks
+  </h1>
+  <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-2">Stories you've saved to read later.</p>
+</div>
+
+{% if stories %}
+<div class="flex items-center gap-3 mb-6">
+  <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300 shadow-sm">
+    <i data-lucide="bookmark-check" class="w-3.5 h-3.5 text-indigo-500"></i>
+    {{ stories | length }} saved {{ 'story' if stories | length == 1 else 'stories' }}
+  </div>
+</div>
+
+<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+  {% for story in stories %}
+    {{ story_card(story) }}
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-24 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+  <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/20">
+    <i data-lucide="bookmark" class="w-8 h-8 text-white"></i>
+  </div>
+  <p class="text-lg font-semibold text-zinc-800 dark:text-zinc-200">No bookmarks yet</p>
+  <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+    Hit the bookmark icon on any story card to save it here.
+  </p>
+  <a href="{{ url_for('main.feed') }}"
+     class="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+            bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition-all">
+    Browse the feed
+    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+  </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,14 +1,8 @@
-"""Score stories against a user's interest topics using an LLM.
+"""LLM-based story relevance scoring against user interest topics.
 
-This replaces the keyword-based ``pipeline.filter_relevant`` for personalized
-(per-user) digest runs. The keyword filter remains the fallback for the public
-feed and whenever the LLM is unavailable.
-
-Design goals:
-    - Graceful degradation: no API key, empty topics, or any API/parse error
-      returns the input stories unchanged (controlled by ``fallback_to_all``).
-    - Cheap + fast: a single bulk call scores all stories; identical
-      (topics, story) pairs are cached in-memory for an hour.
+Graceful degradation: missing API key, empty topics, or any LLM error
+returns stories unchanged (fallback_to_all=True) or empty (False).
+Scores are cached in memory for 1h to avoid redundant API calls.
 """
 from __future__ import annotations
 
@@ -23,16 +17,16 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Fast + cheap model for bulk relevance scoring.
+# cheap model — bulk scoring needs to be fast
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
-# Stories scored below this are dropped from a personalized digest.
+# drop stories below this relevance score
 RELEVANCE_THRESHOLD = 0.4
 
-# Cap how many stories we send to the LLM per call (token control).
+# token budget cap per LLM call
 MAX_STORIES_TO_SCORE = 50
 
-# Cache TTL for (topics, story_id) -> score, in seconds.
+# (topics, story_id) → score, TTL 1h
 _CACHE_TTL = 3_600
 
 _SYSTEM_PROMPT = (
@@ -65,12 +59,12 @@ def _cache_set(key: tuple[frozenset[str], str], score: float) -> None:
 
 
 def clear_cache() -> None:
-    """Clear the in-memory score cache (useful in tests)."""
+    """Clear the score cache (test helper)."""
     _cache.clear()
 
 
 def _best_matching_topic(story: "Story", topics: list[str]) -> str | None:
-    """Return the topic most likely responsible for this story being included."""
+    """Find which topic most likely matched this story (keyword scan, then first topic)."""
     haystack = f"{story.title} {story.summary}".lower()
     for topic in topics:
         if topic.lower() in haystack:
@@ -87,13 +81,7 @@ def score_stories_for_user(
     max_stories_to_score: int = MAX_STORIES_TO_SCORE,
     fallback_to_all: bool = True,
 ) -> list["Story"]:
-    """Score *stories* against *user_topics* and return a filtered, re-scored list.
-
-    The LLM score (0.0-1.0) is folded into ``story.score`` by multiplication, and
-    stories below ``relevance_threshold`` are dropped. If topics are empty, the
-    API key is missing, or the call fails, the input is returned unchanged (when
-    ``fallback_to_all`` is True) or empty (when False).
-    """
+    """Score stories against topics; drop below threshold; multiply LLM score into story.score."""
     topics = [t.strip() for t in (user_topics or []) if t and t.strip()]
     if not topics:
         return stories
@@ -112,7 +100,7 @@ def score_stories_for_user(
     candidates = stories[:max_stories_to_score]
     topic_key = frozenset(t.lower() for t in topics)
 
-    # Resolve cached scores first; only the rest go to the LLM.
+    # hit cache first; only uncached stories go to the LLM
     scores: dict[str, float] = {}
     to_score: list["Story"] = []
     for s in candidates:
@@ -152,7 +140,7 @@ def score_stories_for_user(
 def _call_llm(
     topics: list[str], stories: list["Story"], *, model: str
 ) -> list[float] | None:
-    """Return a list of scores (one per story, same order), or None on failure."""
+    """Call the LLM and return one score per story (same order), or None on failure."""
     try:
         import anthropic
     except ImportError:
@@ -186,7 +174,7 @@ def _call_llm(
 
 
 def _parse_scores(text: str, expected: int) -> list[float] | None:
-    """Parse a JSON array of floats from the model's response."""
+    """Extract a JSON float array from the model's response text."""
     start = text.find("[")
     end = text.rfind("]")
     if start == -1 or end == -1 or end < start:

@@ -1,4 +1,4 @@
-"""Jinja template filters for the web UI."""
+"""Custom Jinja filters."""
 from __future__ import annotations
 
 import base64
@@ -24,7 +24,7 @@ def time_ago(dt: datetime | None) -> str:
 
 
 def safe_url(url: str) -> str:
-    """Return url only if scheme is http/https, else '#'."""
+    """Block non-http(s) schemes; returns '#' for data:, javascript:, etc."""
     try:
         parsed = urlparse(url)
         if parsed.scheme in ("http", "https"):
@@ -35,7 +35,7 @@ def safe_url(url: str) -> str:
 
 
 def card_image(url: str | None) -> str:
-    """Return a card-ready image URL; prefer PNG for Contentful social cards."""
+    """Normalize an image URL; rewrites Contentful URLs to force PNG."""
     if not url:
         return ""
     clean = unescape(url.strip())
@@ -61,12 +61,13 @@ _PLACEHOLDER_COLORS = {
 }
 
 
-def placeholder_image(source_name: str | None = "", category: str | None = "") -> str:
-    """Return a self-contained SVG data-URI image branded with the source name.
+def reading_time(text: str) -> int:
+    """Reading time in minutes at ~200 wpm."""
+    return max(1, len((text or "").split()) // 200)
 
-    Used as a guaranteed fallback so every story card shows a real <img> even
-    when no photo could be found in the feed or article metadata.
-    """
+
+def placeholder_image(source_name: str | None = "", category: str | None = "") -> str:
+    """SVG placeholder branded with source name and category color, as a data URI."""
     c1, c2 = _PLACEHOLDER_COLORS.get((category or "").lower(), ("#4f46e5", "#9333ea"))
     label = _xml_escape((source_name or "News").strip()[:42])
     cat = _xml_escape((category or "").upper())

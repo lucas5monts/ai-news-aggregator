@@ -1,8 +1,9 @@
-"""Newsletter subscription — registration with email + password."""
+"""Subscribe / unsubscribe routes and helper functions."""
 from __future__ import annotations
 
 import logging
 import re
+import threading
 import zoneinfo
 from pathlib import Path
 
@@ -30,10 +31,8 @@ MAX_CUSTOM_TIMES = 10
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
-# Allow letters, numbers, spaces, hyphens, ampersands, apostrophes, dots,
-# commas and exclamation marks only. Rejects topics containing prompt-injection
-# style content (angle brackets, slashes, colons, braces, etc.) before they are
-# ever embedded in an LLM prompt.
+# safe topic chars: letters/numbers/spaces/hyphens/etc. Blocks angle brackets,
+# slashes, colons — prompt injection vectors since topics go into LLM prompts.
 _TOPIC_SAFE_RE = re.compile(r"^[\w\s\-&'.,!]+$", re.UNICODE)
 
 
@@ -46,7 +45,7 @@ def _parse_form_time(raw: str, fallback: str) -> str:
 
 
 def parse_times(raw_times: list[str]) -> list[str]:
-    """Clean a list of raw 'HH:MM' strings: keep valid ones, dedupe, sort, cap."""
+    """Validate, dedupe, sort, and cap a list of raw HH:MM strings."""
     seen: set[str] = set()
     out: list[str] = []
     for raw in raw_times or []:
@@ -61,7 +60,7 @@ def parse_times(raw_times: list[str]) -> list[str]:
 
 
 def set_user_digest_times(user: User, raw_times: list[str]) -> None:
-    """Replace a user's custom delivery times with the validated *raw_times*."""
+    """Overwrite all custom delivery times for a user."""
     times = parse_times(raw_times)
     db.session.query(UserDigestTime).filter_by(user_id=user.id).delete()
     for t in times:
@@ -69,11 +68,7 @@ def set_user_digest_times(user: User, raw_times: list[str]) -> None:
 
 
 def parse_topics(raw_text: str) -> list[str]:
-    """Split a comma/newline-separated string into clean interest topics.
-
-    Strips whitespace, drops blanks, de-duplicates case-insensitively, caps each
-    topic at ``MAX_TOPIC_LEN`` chars and the list at ``MAX_TOPICS`` entries.
-    """
+    """Parse comma/newline-separated interest topics: strip, dedupe, validate, cap."""
     if not raw_text:
         return []
     parts = re.split(r"[,\n\r]+", raw_text)
@@ -83,7 +78,7 @@ def parse_topics(raw_text: str) -> list[str]:
         topic = part.strip()[:MAX_TOPIC_LEN].strip()
         if not topic:
             continue
-        # Reject topics that contain prompt-injection-style content.
+        # reject prompt-injection-style content before it hits an LLM
         if not _TOPIC_SAFE_RE.match(topic):
             log.warning("parse_topics: rejected suspicious topic %r", topic[:40])
             continue
@@ -98,7 +93,7 @@ def parse_topics(raw_text: str) -> list[str]:
 
 
 def set_user_topics(user: User, raw_text: str) -> None:
-    """Replace a user's interest topics with the parsed contents of *raw_text*."""
+    """Overwrite all interest topics for a user."""
     topics = parse_topics(raw_text)
     db.session.query(UserTopic).filter_by(user_id=user.id).delete()
     for topic in topics:
@@ -106,7 +101,7 @@ def set_user_topics(user: User, raw_text: str) -> None:
 
 
 def _seed_user_defaults(user: User) -> None:
-    """Create default UserSettings and enable all sources from sources.yaml."""
+    """Bootstrap UserSettings + UserSource rows from sources.yaml for a new user."""
     settings = UserSettings(user_id=user.id)
     db.session.add(settings)
 
@@ -135,7 +130,7 @@ def subscribe_email(
     morning_time: str = "06:00",
     evening_time: str = "20:00",
 ) -> User:
-    """Create or update a subscriber. Enables email delivery."""
+    """Upsert a subscriber row and flip send_email=True."""
     email = email.strip().lower()
 
     user = db.session.query(User).filter(db.func.lower(User.email) == email).first()
@@ -173,8 +168,9 @@ def subscribe():
             db.func.lower(User.email) == email
         ).first()
         if existing:
+            # neutral redirect — avoid confirming whether the address is registered
             flash(
-                "If that email is already subscribed, log in to manage your preferences.",
+                "If that address is registered, you can log in to manage your preferences.",
                 "info",
             )
             return redirect(url_for("auth.login"))
@@ -222,10 +218,26 @@ def subscribe():
             set_user_digest_times(user, request.form.getlist("custom_times"))
             db.session.commit()
             login_user(user)
+
+            # check referral cookie and assign referrer
+            ref_code = request.cookies.get("referral_code", "")
+            if ref_code:
+                referrer = db.session.query(User).filter_by(referral_code=ref_code).first()
+                if referrer and referrer.id != user.id:
+                    user.referred_by_id = referrer.id
+                    db.session.commit()
+
+            # send welcome email in background so it doesn't block the response
+            from app.onboarding import send_welcome_email
+            from flask import current_app
+            _app = current_app._get_current_object()
+            threading.Thread(target=send_welcome_email, args=(user, _app), daemon=True).start()
+
             log.info("subscribed user_id=%s email=%s", user.id, email)
             flash(f"You're subscribed! Digests will be sent to {email}.", "success")
             resp = make_response(redirect(url_for("main.feed")))
             set_subscriber_cookie(resp, user.id)
+            resp.delete_cookie("referral_code")
             return resp
         except Exception as exc:
             log.error("subscribe failed for %s: %s", email, exc)
@@ -234,6 +246,15 @@ def subscribe():
             return render_template("subscribe.html", initial_times=[]), 500
 
     return render_template("subscribe.html", initial_times=[])
+
+
+@subscriptions_bp.route("/ref/<code>")
+@limiter.limit("30 per minute")
+def referral_landing(code: str):
+    """Set a cookie recording who referred this visitor, then redirect to subscribe."""
+    resp = make_response(redirect(url_for("subscriptions.subscribe")))
+    resp.set_cookie("referral_code", code, max_age=60 * 60 * 24 * 7, httponly=True, samesite="Lax")
+    return resp
 
 
 @subscriptions_bp.route("/unsubscribe/<token>", methods=["GET", "POST"])

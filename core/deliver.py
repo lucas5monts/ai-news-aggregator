@@ -1,4 +1,4 @@
-"""Gmail SMTP delivery for the AI news digest."""
+"""Gmail SMTP delivery."""
 from __future__ import annotations
 
 import logging
@@ -18,14 +18,7 @@ SMTP_TIMEOUT = 30
 
 
 def load_email_config() -> dict[str, str]:
-    """Load Gmail credentials from environment / .env file.
-
-    Required keys: GMAIL_ADDRESS, GMAIL_APP_PASSWORD
-    Optional key:  TO_ADDRESS (used by the CLI; the web app uses each user's
-                   own email address and does not need this key)
-
-    Raises RuntimeError with a clear pointer to .env.example if anything is missing.
-    """
+    """Load Gmail creds from env/.env. Raises RuntimeError if required keys are missing."""
     load_dotenv()
     required = ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD")
     config: dict[str, str] = {}
@@ -37,7 +30,7 @@ def load_email_config() -> dict[str, str]:
         else:
             config[key] = val
 
-    # TO_ADDRESS is only needed for the CLI; include it if present but don't require it
+    # TO_ADDRESS: CLI only, not required
     to_addr = os.environ.get("TO_ADDRESS", "").strip()
     if to_addr:
         config["TO_ADDRESS"] = to_addr
@@ -52,12 +45,7 @@ def load_email_config() -> dict[str, str]:
 
 
 def build_subject(edition: str, story_count: int, send_time: str | None = None) -> str:
-    """Return formatted subject: 'AI Brief · Thu May 21 · 6:00 AM · 12 stories'.
-
-    If *send_time* ("HH:MM", 24-hour) is provided, it is formatted as a 12-hour
-    time and used in the subject. Otherwise a sensible default is used based on
-    *edition*.
-    """
+    """Build digest subject line. send_time is HH:MM (24h); falls back to edition default."""
     now = datetime.now()
     weekday = now.strftime("%a")
     mon = now.strftime("%b")
@@ -67,7 +55,7 @@ def build_subject(edition: str, story_count: int, send_time: str | None = None) 
 
 
 def _format_12h(time_str: str | None) -> str | None:
-    """Convert 'HH:MM' (24-hour) to a 12-hour label like '5:00 AM'. None on bad input."""
+    """'HH:MM' → '5:00 AM' style label. None on bad input."""
     if not time_str:
         return None
     try:
@@ -88,12 +76,7 @@ def send_digest(
     app_password: str,
     unsubscribe_url: str = "",
 ) -> None:
-    """Build a MIMEMultipart/alternative message and send via Gmail SMTP_SSL.
-
-    Logs message size on success; logs a useful error and re-raises on failure.
-    Never logs the app password. When *unsubscribe_url* is provided, a footer
-    link is appended to both the plaintext and HTML parts (CAN-SPAM / GDPR).
-    """
+    """Send plaintext + HTML digest via Gmail SMTP_SSL. Appends unsubscribe footer if url given."""
     if unsubscribe_url:
         plaintext = plaintext + f"\n\n─\nUnsubscribe: {unsubscribe_url}"
         # For HTML: inject a footer link before the closing body tag.
@@ -108,7 +91,7 @@ def send_digest(
     msg["From"] = from_address
     msg["To"] = to_address
 
-    # RFC 2046: plain first, HTML second — client picks the last part it understands
+    # RFC 2046: plain before HTML — client picks last understood part
     msg.attach(MIMEText(plaintext, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 

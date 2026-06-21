@@ -1,8 +1,4 @@
-"""SQLite persistence — tracks which stories we've already seen / sent.
-
-Schema is intentionally tiny in Phase 1. We'll add a `digests` table
-in Phase 3 (email logging) and a `clusters` table in Phase 2 (dedupe).
-"""
+"""SQLite story cache — used by the CLI and the hourly scheduler job."""
 from __future__ import annotations
 
 import sqlite3
@@ -13,6 +9,8 @@ from typing import Iterator
 
 from .pipeline import Story
 
+# sent_at is intentionally omitted — the Flask app dropped that column.
+# Keep the schema in sync with _migrate_drop_sent_at in app/__init__.py.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stories (
     id           TEXT PRIMARY KEY,
@@ -23,11 +21,9 @@ CREATE TABLE IF NOT EXISTS stories (
     category     TEXT NOT NULL,
     published_at TEXT NOT NULL,
     score        REAL NOT NULL,
-    first_seen   TEXT NOT NULL,
-    sent_at      TEXT
+    first_seen   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_stories_published ON stories(published_at);
-CREATE INDEX IF NOT EXISTS idx_stories_sent ON stories(sent_at);
 """
 
 
@@ -44,24 +40,8 @@ def connect(db_path: Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def mark_sent(
-    conn: sqlite3.Connection,
-    story_ids: list[str],
-    sent_at: datetime,
-) -> int:
-    """Set sent_at on stories that haven't been marked sent yet. Returns row count."""
-    if not story_ids:
-        return 0
-    placeholders = ",".join("?" * len(story_ids))
-    cur = conn.execute(
-        f"UPDATE stories SET sent_at=? WHERE id IN ({placeholders}) AND sent_at IS NULL",
-        [sent_at.isoformat(), *story_ids],
-    )
-    return cur.rowcount
-
-
 def upsert_stories(conn: sqlite3.Connection, stories: list[Story]) -> int:
-    """Insert new stories; ignore ones we've already stored. Returns inserts."""
+    """Insert new stories; skip ones already stored. Returns count of new inserts."""
     now = datetime.utcnow().isoformat()
     inserted = 0
     for s in stories:

@@ -1,8 +1,8 @@
-"""AI News Aggregator — CLI entrypoint.
+"""CLI entrypoint.
 
 Usage:
-    python -m core.main morning         # last 24h, print to terminal
-    python -m core.main morning --send  # same + email digest via Gmail
+    python -m core.main morning         # last 24h
+    python -m core.main morning --send  # + email via Gmail
     python -m core.main evening         # last 12h
 """
 from __future__ import annotations
@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -31,7 +30,7 @@ def _setup_logging(verbose: bool) -> None:
         format="%(asctime)s  %(levelname)-7s %(name)s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    # quiet down http chatter unless --verbose
+    # suppress httpx noise unless --verbose
     if not verbose:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -80,34 +79,34 @@ def main() -> int:
 
     log.info("edition=%s  window=%dh  max=%d", args.edition, window, max_stories)
 
-    # 1. fetch
+    # fetch
     raw = fetch.fetch_all(sources_cfg["sources"])
     log.info("fetched %d total entries from %d sources", len(raw), len(sources_cfg["sources"]))
 
-    # 2. normalize
+    # normalize
     stories = pipeline.normalize(raw, max_summary_chars=max_summary_chars)
     total_scanned = len(stories)
 
-    # 3. filter
+    # filter
     stories = pipeline.filter_relevant(stories, keywords, window)
 
-    # 4. rank
+    # rank
     source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in sources_cfg["sources"]}
     stories = pipeline.rank(stories, source_weights)
 
-    # 5. dedupe
+    # dedupe
     stories = pipeline.dedupe(stories)
 
-    # 6. cap
+    # cap
     stories = pipeline.cap(stories, max_stories)
 
-    # 7. persist
+    # persist
     db_path = PROJECT_ROOT / "data.db"
     with storage.connect(db_path) as conn:
         inserted = storage.upsert_stories(conn, stories)
     log.info("stored %d new stories (total in digest: %d)", inserted, len(stories))
 
-    # 8. render plaintext (always)
+    # render
     output = render.render_plaintext(
         stories,
         edition=args.edition,
@@ -117,7 +116,7 @@ def main() -> int:
     print()
     print(output)
 
-    # 9. optional email delivery
+    # send
     if args.send:
         email_cfg = deliver.load_email_config()
         if "TO_ADDRESS" not in email_cfg:
@@ -140,10 +139,7 @@ def main() -> int:
             from_address=email_cfg["GMAIL_ADDRESS"],
             app_password=email_cfg["GMAIL_APP_PASSWORD"],
         )
-        sent_at = datetime.now(timezone.utc)
-        with storage.connect(db_path) as conn:
-            updated = storage.mark_sent(conn, [s.id for s in stories], sent_at)
-        log.info("marked %d stories as sent", updated)
+
 
     return 0
 

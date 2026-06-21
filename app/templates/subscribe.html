@@ -3,7 +3,6 @@
 
 {% block content %}
 <div class="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center max-w-5xl mx-auto">
-  <!-- Visual panel -->
   <div class="relative order-2 lg:order-1">
     <div class="absolute -inset-4 bg-gradient-to-br from-indigo-500/20 via-violet-500/10 to-transparent rounded-3xl blur-2xl"></div>
     <div class="relative rounded-3xl overflow-hidden border border-zinc-200/80 dark:border-zinc-800 shadow-2xl">
@@ -24,7 +23,6 @@
     </div>
   </div>
 
-  <!-- Form -->
   <div class="order-1 lg:order-2">
     <p class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-2">Newsletter</p>
     <h1 class="font-display text-3xl font-bold tracking-tight mb-2">Subscribe</h1>
@@ -73,16 +71,13 @@
         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your interests <span class="text-zinc-400 font-normal">(optional)</span></label>
         <p class="text-xs text-zinc-400 mb-3">Click topics to add them, or type your own below. Leave blank for top general news.</p>
 
-        <!-- Selected tags -->
         <div id="topic-tags" class="flex flex-wrap gap-2 mb-2 empty:mb-0"></div>
 
-        <!-- Custom input -->
         <input type="text" id="topic-input" autocomplete="off"
                placeholder="Type a topic and press Enter..."
                class="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 text-sm
                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
 
-        <!-- Quick picks -->
         <div class="mt-4 space-y-3">
           {% set topic_groups = [
             ('Quick picks', ['World News', 'US News', 'Politics', 'Business', 'Science', 'Health', 'Climate', 'Technology']),
@@ -112,7 +107,6 @@
       <div class="space-y-3">
         <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery schedule</p>
 
-        <!-- Morning slot -->
         <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" name="morning_enabled" id="morning_enabled" checked
@@ -128,7 +122,6 @@
           </label>
         </div>
 
-        <!-- Evening slot -->
         <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" name="evening_enabled" id="evening_enabled"
@@ -144,7 +137,6 @@
           </label>
         </div>
 
-        <!-- Custom times -->
         <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
           <div class="flex items-center justify-between gap-3">
             <div>

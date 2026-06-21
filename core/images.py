@@ -1,8 +1,4 @@
-"""Fetch article hero images from page metadata (Open Graph / Twitter cards).
-
-Used when RSS feeds don't include a thumbnail. Results are cached in memory
-so repeat feed loads stay fast.
-"""
+"""Fetch OG/Twitter card images for stories missing a thumbnail. In-memory cache."""
 from __future__ import annotations
 
 import asyncio
@@ -91,7 +87,7 @@ def _normalize_image_url(raw: str, page_url: str) -> str | None:
 
 
 def parse_og_image(html: str, page_url: str) -> str | None:
-    """Extract the best social preview image from partial page HTML."""
+    """Extract the best og:image / twitter:image from partial HTML."""
     for pattern in (_META_IMAGE, _META_IMAGE_REV, _LINK_IMAGE, _ITEMPROP_IMAGE, _JSONLD_IMAGE):
         match = pattern.search(html)
         if match:
@@ -102,7 +98,7 @@ def parse_og_image(html: str, page_url: str) -> str | None:
 
 
 def _is_safe_url(url: str) -> bool:
-    """Return False if the URL resolves to a private/loopback/link-local IP."""
+    """SSRF guard: returns False for private/loopback/link-local IPs."""
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -167,13 +163,13 @@ async def _enrich_async(stories: list[Story]) -> None:
 
 
 def enrich_story_images(stories: list[Story]) -> list[Story]:
-    """Fill missing ``image_url`` values from article Open Graph metadata."""
+    """Fetch OG images for stories without a thumbnail."""
     if not stories:
         return stories
     try:
         asyncio.run(_enrich_async(stories))
     except RuntimeError:
-        # Already inside an event loop (unlikely in Flask sync context)
+        # already inside an event loop — create a new one
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(_enrich_async(stories))
@@ -183,5 +179,5 @@ def enrich_story_images(stories: list[Story]) -> list[Story]:
 
 
 def clear_image_cache() -> None:
-    """Clear the in-memory cache (useful in tests)."""
+    """Clear the image cache (test helper)."""
     _cache.clear()

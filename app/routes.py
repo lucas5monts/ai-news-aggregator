@@ -1,14 +1,14 @@
-"""Main application routes for the AI News Dashboard.
-
-All routes are public — no login required. Subscribers sign up via /subscribe.
-"""
+"""Main routes — feed, search, click tracking, digest preview."""
 from __future__ import annotations
 
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask_login import current_user
+from sqlalchemy import text
 
 from app import limiter
 from app.models import db
@@ -35,7 +35,7 @@ def _load_settings_yaml() -> dict:
 
 
 def _load_categories() -> list[str]:
-    """Category display order for the public feed (from settings.yaml)."""
+    """Category order from settings.yaml."""
     settings_yaml = _load_settings_yaml()
     return settings_yaml.get("digest", {}).get(
         "category_order",
@@ -71,16 +71,9 @@ def _empty_ai_metadata() -> dict:
 
 
 def _run_pipeline_global(category: str | None = None) -> tuple[list, int, dict]:
-    """Fetch + pipeline using global config defaults.
-
-    When a subscriber cookie is present and the user has interest topics,
-    stories are scored by the LLM for personalization metadata (matched_topic,
-    llm_score). Otherwise the feed is unfiltered by topic.
-    An optional *category* narrows results to a single source_category.
-    """
-    from app.models import UserTopic
+    """Run the full pipeline with global config; personalize if user has topics set."""
+    from app.models import UserBlockedKeyword, UserCustomSource, UserTopic
     from app.subscriber_cookie import get_subscriber_user
-    from flask_login import current_user
     from core import fetch, pipeline, relevance
 
     all_sources = _load_sources_yaml()
@@ -93,6 +86,14 @@ def _run_pipeline_global(category: str | None = None) -> tuple[list, int, dict]:
     window_hours = int(settings_yaml.get("default_time_window_hours", 24))
     llm_cfg = settings_yaml.get("llm", {}) or {}
 
+    user = current_user if current_user.is_authenticated else get_subscriber_user()
+
+    # tack on user's custom RSS feeds
+    if user:
+        custom = db.session.query(UserCustomSource).filter_by(user_id=user.id, enabled=True).all()
+        for cs in custom:
+            user_sources.append({"name": cs.name, "url": cs.url, "category": "custom", "weight": 1.0, "enabled": True})
+
     raw = fetch.fetch_all(user_sources)
     total_scanned = len(raw)
 
@@ -103,8 +104,8 @@ def _run_pipeline_global(category: str | None = None) -> tuple[list, int, dict]:
     source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in all_sources}
     stories = pipeline.rank(stories, source_weights)
     stories = pipeline.dedupe(stories)
+    stories = pipeline.cluster_stories(stories)
 
-    user = current_user if current_user.is_authenticated else get_subscriber_user()
     if user:
         user_topics = [
             t.topic for t in db.session.query(UserTopic).filter_by(user_id=user.id).all()
@@ -118,8 +119,23 @@ def _run_pipeline_global(category: str | None = None) -> tuple[list, int, dict]:
                 fallback_to_all=bool(llm_cfg.get("fallback_to_all", True)),
             )
 
+        # drop stories matching any blocked keyword
+        user_blocked_kws = [
+            k.keyword for k in db.session.query(UserBlockedKeyword).filter_by(user_id=user.id).all()
+        ]
+        if user_blocked_kws:
+            stories = [
+                s for s in stories
+                if not any(kw.lower() in (s.title + " " + s.summary).lower() for kw in user_blocked_kws)
+            ]
+
     if category:
         stories = [s for s in stories if s.source_category == category]
+
+    # ?topic= narrows to a single matched_topic
+    topic_filter = request.args.get("topic", "").strip()
+    if topic_filter:
+        stories = [s for s in stories if s.matched_topic and s.matched_topic.lower() == topic_filter.lower()]
 
     stories = pipeline.cap(stories, max_stories)
 
@@ -135,7 +151,7 @@ def _run_pipeline_filtered(
     max_stories: int,
     categories: list[str],
 ) -> tuple[list, int]:
-    """Run the pipeline with user-selected sources, window, categories, and cap."""
+    """Pipeline run for the /preview page with explicit source/window/category filters."""
     from core import fetch, pipeline
 
     all_sources = _load_sources_yaml()
@@ -181,15 +197,26 @@ def index():
 
 
 def _selected_category() -> str | None:
-    """Validated ?category= query param, or None for all categories."""
+    """Validated ?category= param, or None."""
     cat = request.args.get("category")
     return cat if cat in _load_categories() else None
 
 
+def _get_bookmarked_ids() -> set:
+    """Current user's bookmarked story IDs, or empty set if not logged in."""
+    if not current_user.is_authenticated:
+        return set()
+    from app.models import UserBookmark
+    rows = db.session.query(UserBookmark).filter_by(user_id=current_user.id).all()
+    return {r.story_id for r in rows}
+
+
 @main_bp.route("/feed")
+@limiter.limit("30 per minute")
 def feed():
     log.info("GET /feed")
     category = _selected_category()
+    active_topic = request.args.get("topic", "").strip()
     try:
         stories, total_scanned, ai_meta = _run_pipeline_global(category)
     except Exception as exc:
@@ -204,6 +231,8 @@ def feed():
         topic_counts=_build_topic_counts(stories),
         categories=_load_categories(),
         selected_category=category,
+        active_topic=active_topic,
+        bookmarked_ids=_get_bookmarked_ids(),
     )
 
 
@@ -223,10 +252,13 @@ def feed_refresh():
         total_scanned=total_scanned,
         ai_meta=ai_meta,
         topic_counts=_build_topic_counts(stories),
+        active_topic=request.args.get("topic", "").strip(),
+        bookmarked_ids=_get_bookmarked_ids(),
     )
 
 
 @main_bp.route("/preview")
+@limiter.limit("10 per minute")
 def preview():
     log.info("GET /preview")
     settings_yaml = _load_settings_yaml()
@@ -255,6 +287,7 @@ def preview():
         window_hours = int(request.args.get("window_hours", default_window))
     except (TypeError, ValueError):
         window_hours = default_window
+    window_hours = max(1, min(window_hours, 168))  # cap at 1 week
     try:
         max_stories = int(request.args.get("max_stories", default_max))
     except (TypeError, ValueError):
@@ -289,3 +322,101 @@ def preview():
         window_hours=window_hours,
         max_stories=max_stories,
     )
+
+
+@main_bp.route("/search")
+@limiter.limit("20 per minute")
+def search():
+    q = request.args.get("q", "").strip()[:200]
+    stories = []
+    db_url = str(db.engine.url)
+    if q and "sqlite" in db_url:
+        try:
+            with db.engine.connect() as conn:
+                result = conn.execute(
+                    text("SELECT id FROM stories_fts WHERE stories_fts MATCH :q ORDER BY rank LIMIT 30"),
+                    {"q": q},
+                )
+                matched_ids = [row[0] for row in result]
+            if matched_ids:
+                placeholders = ", ".join(f"'{sid}'" for sid in matched_ids)
+                with db.engine.connect() as conn:
+                    rows = conn.execute(
+                        text(f"SELECT id, title, url, summary, source_name, published_at FROM stories WHERE id IN ({placeholders})")
+                    )
+                    # Build lightweight story-like objects
+                    from types import SimpleNamespace
+                    from datetime import datetime, timezone
+                    for row in rows:
+                        pub = row[5]
+                        if isinstance(pub, str):
+                            try:
+                                pub = datetime.fromisoformat(pub)
+                                if pub.tzinfo is None:
+                                    pub = pub.replace(tzinfo=timezone.utc)
+                            except Exception:
+                                pub = datetime.now(timezone.utc)
+                        stories.append(SimpleNamespace(
+                            id=row[0],
+                            title=row[1],
+                            url=row[2],
+                            summary=row[3],
+                            source_name=row[4],
+                            source_category="",
+                            published_at=pub,
+                            image_url=None,
+                            matched_topic=None,
+                            llm_score=None,
+                            alt_sources=[],
+                        ))
+        except Exception as exc:
+            log.error("search error: %s", exc)
+            flash("Search is temporarily unavailable.", "error")
+    return render_template(
+        "search.html",
+        query=q,
+        stories=stories,
+        story_count=len(stories),
+        bookmarked_ids=_get_bookmarked_ids(),
+    )
+
+
+@main_bp.route("/click/<story_id>")
+@limiter.limit("60 per minute")
+def story_click(story_id: str):
+    """Record the click, then redirect to the article."""
+    from app.models import StoryClick
+
+    story_url = None
+    try:
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT url FROM stories WHERE id = :sid"),
+                {"sid": story_id},
+            )
+            row = result.fetchone()
+            if row:
+                story_url = row[0]
+    except Exception as exc:
+        log.error("story_click DB error: %s", exc)
+
+    # Log the click
+    try:
+        user_id = current_user.id if current_user.is_authenticated else None
+        click = StoryClick(user_id=user_id, story_id=story_id)
+        db.session.add(click)
+        db.session.commit()
+    except Exception as exc:
+        log.error("story_click log error: %s", exc)
+        db.session.rollback()
+
+    # only redirect to http/https — reject data: javascript: etc.
+    if story_url:
+        try:
+            parsed = urlparse(story_url)
+            if parsed.scheme in ("http", "https"):
+                return redirect(story_url)
+        except Exception:
+            pass
+
+    return redirect(url_for("main.feed"))

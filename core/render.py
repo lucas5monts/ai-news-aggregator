@@ -1,4 +1,4 @@
-"""Render a digest as plain text or HTML email."""
+"""Render digests as plaintext or HTML email."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -55,7 +55,7 @@ def render_plaintext(
     for s in stories:
         by_category.setdefault(s.source_category, []).append(s)
 
-    # Maintain configured ordering; any unknown category goes at the end
+    # keep configured order; unknown categories go at the end
     seen_cats = []
     for cat in category_order:
         if cat in by_category:
@@ -74,7 +74,7 @@ def render_plaintext(
             meta = f"  {s.source_name} · {_relative_time(s.published_at)}"
             lines.append(meta)
             if s.summary:
-                # 2-space indent for readability
+                # 2-space indent
                 for chunk in _wrap(s.summary, width=72):
                     lines.append(f"  {chunk}")
             lines.append(f"  → {s.url}")
@@ -97,7 +97,7 @@ def render_html(
     category_order: list[str],
     total_scanned: int,
 ) -> str:
-    """Return a self-contained HTML email with inline CSS only."""
+    """Render the HTML email template for a digest."""
     stories = list(stories)
     now = datetime.now().strftime("%a %b %d · %I:%M %p").replace(" 0", " ")
 
@@ -131,7 +131,7 @@ def render_html(
 
 
 def _wrap(text: str, width: int) -> list[str]:
-    """Tiny word-wrap so we don't pull in textwrap's quirks."""
+    """Simple word-wrap without textwrap."""
     words = text.split()
     out: list[str] = []
     line = ""

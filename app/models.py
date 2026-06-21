@@ -1,15 +1,4 @@
-"""SQLAlchemy models for the AI News Dashboard.
-
-Tables:
-    users           — newsletter subscribers
-    user_settings   — per-user digest preferences
-    user_sources    — per-user RSS source toggles (used by scheduler)
-    digests         — log of every sent digest (with rendered HTML blob)
-    digest_stories  — join table: which stories were in each digest
-
-The global `stories` table is managed by core.storage (SQLite/raw SQL).
-We leave it untouched here — it is the shared story cache.
-"""
+"""ORM models. The raw `stories` table is managed by core.storage, not here."""
 from __future__ import annotations
 
 import secrets as _secrets
@@ -40,6 +29,8 @@ class User(UserMixin, db.Model):
         nullable=False,
         default=lambda: _secrets.token_urlsafe(32),
     )
+    referral_code = db.Column(db.String(16), unique=True, nullable=True, default=lambda: _secrets.token_urlsafe(8))
+    referred_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
     # relationships
     settings = db.relationship(
@@ -79,10 +70,10 @@ class UserSettings(db.Model):
     morning_enabled = db.Column(db.Boolean, default=True, nullable=False)
     evening_enabled = db.Column(db.Boolean, default=True, nullable=False)
     max_stories = db.Column(db.Integer, default=15, nullable=False)
-    max_categories = db.Column(db.Integer, nullable=True)  # None = show all categories
+    max_categories = db.Column(db.Integer, nullable=True)  # None → show all
     timezone = db.Column(db.String(64), default="America/Los_Angeles", nullable=False)
-    morning_time = db.Column(db.String(5), default="06:00", nullable=False)  # "HH:MM"
-    evening_time = db.Column(db.String(5), default="20:00", nullable=False)  # "HH:MM"
+    morning_time = db.Column(db.String(5), default="06:00", nullable=False)
+    evening_time = db.Column(db.String(5), default="20:00", nullable=False)
 
     user = db.relationship("User", back_populates="settings")
 
@@ -109,7 +100,7 @@ class UserTopic(db.Model):
     __allow_unmapped__ = True
 
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
-    topic = db.Column(db.String(128), primary_key=True)  # e.g. "F1 racing"
+    topic = db.Column(db.String(128), primary_key=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
 
     user = db.relationship("User", back_populates="topics")
@@ -119,17 +110,13 @@ class UserTopic(db.Model):
 
 
 class UserDigestTime(db.Model):
-    """Extra, user-defined delivery times beyond the morning/evening presets.
-
-    Each row is one custom "HH:MM" send time. The scheduler treats these as
-    additional editions, keyed by time so several can fire on the same day.
-    """
+    """User-defined delivery times beyond morning/evening. One row per "HH:MM" slot."""
 
     __tablename__ = "user_digest_times"
     __allow_unmapped__ = True
 
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
-    send_time = db.Column(db.String(5), primary_key=True)  # "HH:MM" (24-hour)
+    send_time = db.Column(db.String(5), primary_key=True)  # "HH:MM"
     enabled = db.Column(db.Boolean, default=True, nullable=False)
 
     user = db.relationship("User", back_populates="digest_times")
@@ -144,7 +131,7 @@ class Digest(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    edition = db.Column(db.String(16), nullable=False)  # morning / evening / test
+    edition = db.Column(db.String(16), nullable=False)  # "morning" / "evening" / "custom@HH:MM"
     sent_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
     story_count = db.Column(db.Integer, nullable=False, default=0)
     subject = db.Column(db.String(256), nullable=False, default="")
@@ -170,3 +157,70 @@ class DigestStory(db.Model):
 
     def __repr__(self) -> str:
         return f"<DigestStory digest_id={self.digest_id} story_id={self.story_id!r}>"
+
+
+class UserBookmark(db.Model):
+    __tablename__ = "user_bookmarks"
+    __allow_unmapped__ = True
+
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
+    story_id = db.Column(db.String(64), primary_key=True)
+    bookmarked_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
+    user = db.relationship("User", backref=db.backref("bookmarks", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<UserBookmark user_id={self.user_id} story_id={self.story_id!r}>"
+
+
+class StoryClick(db.Model):
+    __tablename__ = "story_clicks"
+    __allow_unmapped__ = True
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)  # anonymous clicks allowed
+    story_id = db.Column(db.String(64), nullable=False, index=True)
+    clicked_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<StoryClick id={self.id} story_id={self.story_id!r}>"
+
+
+class UserBlockedKeyword(db.Model):
+    __tablename__ = "user_blocked_keywords"
+    __allow_unmapped__ = True
+
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
+    keyword = db.Column(db.String(128), primary_key=True)
+    user = db.relationship("User", backref=db.backref("blocked_keywords", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<UserBlockedKeyword user_id={self.user_id} keyword={self.keyword!r}>"
+
+
+class UserCustomSource(db.Model):
+    __tablename__ = "user_custom_sources"
+    __allow_unmapped__ = True
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    url = db.Column(db.String(512), nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    user = db.relationship("User", backref=db.backref("custom_sources", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<UserCustomSource id={self.id} user_id={self.user_id} name={self.name!r}>"
+
+
+class OnboardingEmail(db.Model):
+    __tablename__ = "onboarding_emails"
+    __allow_unmapped__ = True
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    step = db.Column(db.String(32), nullable=False)  # "welcome", "day3"
+    sent_at = db.Column(db.DateTime(timezone=True), default=_now_utc, nullable=False)
+    user = db.relationship("User", backref=db.backref("onboarding_emails", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<OnboardingEmail id={self.id} user_id={self.user_id} step={self.step!r}>"

@@ -1,7 +1,4 @@
-"""Normalize raw RSS entries, filter for relevance, rank, and dedupe.
-
-Pipeline: normalize → relevance filter → recency rank → fuzzy dedupe.
-"""
+"""RSS entry pipeline: normalize → filter → rank → dedupe."""
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +19,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Story:
-    """A normalized, scored story ready to render."""
+    """Normalized story, post-pipeline."""
 
     id: str  # stable hash of canonical URL
     title: str
@@ -33,10 +30,13 @@ class Story:
     published_at: datetime
     score: float = 0.0
     image_url: str | None = None
-    matched_topic: str | None = None  # user interest that best matched this story
-    llm_score: float | None = None  # raw LLM relevance score (0.0–1.0)
-    # Phase 2: alt_sources collects other sources covering the same story
+    matched_topic: str | None = None  # which user topic triggered this story
+    llm_score: float | None = None  # 0.0–1.0 from LLM scorer
+    # other sources covering the same story (populated by dedupe)
     alt_sources: list[str] = field(default_factory=list)
+    # full-coverage clustering (populated by cluster_stories)
+    cluster_stories: list = field(default_factory=list)
+    cluster_count: int = 1
 
 
 # --- helpers -----------------------------------------------------------------
@@ -60,7 +60,7 @@ def _strip_html(text: str) -> str:
 
 
 def _parse_date(entry: dict[str, Any]) -> datetime:
-    """Best-effort published-time extraction. Falls back to now if missing."""
+    """Parse published date from feed entry; falls back to now."""
     for key in ("published", "updated", "created"):
         val = entry.get(key)
         if not val:
@@ -73,7 +73,7 @@ def _parse_date(entry: dict[str, Any]) -> datetime:
         except (TypeError, ValueError):
             continue
 
-    # feedparser also exposes a parsed struct_time — try that as a fallback
+    # also try feedparser's struct_time
     for key in ("published_parsed", "updated_parsed"):
         st = entry.get(key)
         if st:
@@ -82,7 +82,7 @@ def _parse_date(entry: dict[str, Any]) -> datetime:
             except (TypeError, ValueError):
                 continue
 
-    log.debug("no parsable date on entry; falling back to now")
+    log.debug("no parsable date; falling back to now")
     return datetime.now(timezone.utc)
 
 
@@ -105,12 +105,7 @@ def _looks_like_image(url: str) -> bool:
 
 
 def _extract_image(entry: dict[str, Any]) -> str | None:
-    """Best-effort thumbnail from RSS media tags or embedded HTML.
-
-    Checks every common place feeds stash a hero image, in rough order of
-    reliability, so as many stories as possible get a real picture before we
-    fall back to a live og:image fetch.
-    """
+    """Extract best available thumbnail from RSS media tags or embedded HTML."""
     # 1. Media RSS thumbnail
     for thumb in entry.get("media_thumbnail") or []:
         url = thumb.get("url")
@@ -189,10 +184,7 @@ def normalize(raw: list[RawEntry], max_summary_chars: int = 280) -> list[Story]:
 def filter_relevant(
     stories: list[Story], keywords: list[str], window_hours: int
 ) -> list[Story]:
-    """Drop stories older than the window or that don't match any keyword.
-
-    Empty keyword list = pass everything through (used for already-curated feeds).
-    """
+    """Drop stories outside the time window or missing any keyword. Empty keywords = keep all."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
     lowered = [k.lower() for k in keywords]
     kept: list[Story] = []
@@ -219,10 +211,7 @@ def filter_relevant(
 
 
 def rank(stories: list[Story], source_weights: dict[str, float]) -> list[Story]:
-    """Score = recency_score * source_weight.
-
-    Recency: 1.0 for "just now" decaying to ~0.1 at the 24h mark.
-    """
+    """score = recency × source_weight. Recency decays from 1.0 to ~0.1 over 24h."""
     now = datetime.now(timezone.utc)
     for s in stories:
         age_hours = max(0.0, (now - s.published_at).total_seconds() / 3600)
@@ -237,8 +226,7 @@ def cap(stories: list[Story], n: int) -> list[Story]:
     return stories[:n]
 
 
-# Titles matching these patterns are promotional junk (coupons, deals, etc.)
-# and should never appear on a news feed.
+# junk title patterns — coupons/deals that slip through curated feeds
 _JUNK_RE = re.compile(
     r"\b("
     r"coupon|promo\s*code|discount\s*code|voucher|"
@@ -251,7 +239,7 @@ _JUNK_RE = re.compile(
 
 
 def filter_junk(stories: list[Story]) -> list[Story]:
-    """Drop promotional / coupon stories based on title patterns."""
+    """Drop coupon/promo stories by title regex."""
     kept = [s for s in stories if not _JUNK_RE.search(s.title)]
     dropped = len(stories) - len(kept)
     if dropped:
@@ -293,7 +281,7 @@ class _UnionFind:
 
 
 def dedupe(stories: list[Story]) -> list[Story]:
-    """Collapse near-duplicate titles across sources; keep highest-scored primary."""
+    """Fuzzy-dedupe by title; keeps highest-scored story per cluster, collects alt_sources."""
     if not stories:
         log.info("dedupe: 0 stories collapsed into 0 clusters (0 primaries kept)")
         return []
@@ -337,4 +325,40 @@ def dedupe(stories: list[Story]) -> list[Story]:
         multi_clusters,
         len(result),
     )
+    return result
+
+
+_CLUSTER_THRESHOLD = 72  # tuned for news titles
+
+
+def cluster_stories(stories: list[Story]) -> list[Story]:
+    """Group stories about the same event into clusters for 'Full Coverage' display.
+
+    The highest-scoring story becomes the primary; others attach as .cluster_stories.
+    Unlike dedupe (which collapses to one), this preserves all stories but annotates
+    the primary with related coverage so the UI can surface them.
+    """
+    from rapidfuzz.fuzz import token_sort_ratio
+
+    used: set[int] = set()
+    result: list[Story] = []
+
+    for i, primary in enumerate(stories):
+        if i in used:
+            continue
+        cluster: list[Story] = []
+        for j, candidate in enumerate(stories):
+            if j == i or j in used:
+                continue
+            score = token_sort_ratio(primary.title, candidate.title)
+            if score >= _CLUSTER_THRESHOLD:
+                cluster.append(candidate)
+                used.add(j)
+        used.add(i)
+        primary.cluster_stories = cluster
+        primary.cluster_count = len(cluster) + 1
+        result.append(primary)
+
+    clustered = sum(1 for s in result if s.cluster_count > 1)
+    log.info("cluster_stories: %d stories → %d primary cards (%d with multiple sources)", len(stories), len(result), clustered)
     return result

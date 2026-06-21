@@ -1,18 +1,7 @@
-"""In-process APScheduler for the AI News Dashboard.
+"""APScheduler — hourly story refresh + per-minute digest dispatch.
 
-Jobs:
-    1. hourly_refresh  — global story cache refresh (upserts into stories table)
-    2. digest_check    — runs every minute; sends morning/evening digests to
-                         users whose local time matches and have the edition enabled
-
-Gating:
-    - Only starts when ENABLE_SCHEDULER=1 env var is set
-    - Guards against double-start from Flask dev-server reloader:
-      only starts when WERKZEUG_RUN_MAIN=true (or when not using reloader)
-
-Usage:
-    from app.scheduler import init_scheduler
-    init_scheduler(app)   # called from create_app()
+Only starts when ENABLE_SCHEDULER=1. Guards against double-start from the
+Werkzeug reloader by checking WERKZEUG_RUN_MAIN.
 """
 from __future__ import annotations
 
@@ -35,7 +24,7 @@ _scheduler: BackgroundScheduler | None = None
 def is_users_morning(
     user_tz: str, time_str: str = "06:00", now_utc: datetime | None = None
 ) -> bool:
-    """Return True if local time in *user_tz* matches *time_str* (default 6:00 AM)."""
+    """True if local wall-clock time in user_tz matches time_str."""
     hour, minute = _parse_time_str(time_str)
     return _is_hour_minute(user_tz, hour=hour, minute=minute, now_utc=now_utc)
 
@@ -43,13 +32,13 @@ def is_users_morning(
 def is_users_evening(
     user_tz: str, time_str: str = "20:00", now_utc: datetime | None = None
 ) -> bool:
-    """Return True if local time in *user_tz* matches *time_str* (default 8:00 PM)."""
+    """True if local wall-clock time in user_tz matches time_str."""
     hour, minute = _parse_time_str(time_str)
     return _is_hour_minute(user_tz, hour=hour, minute=minute, now_utc=now_utc)
 
 
 def _parse_time_str(time_str: str) -> tuple[int, int]:
-    """Parse 'HH:MM' → (hour, minute). Falls back to (6, 0) on bad input."""
+    """'HH:MM' → (hour, minute). Falls back to (6, 0) on bad input."""
     try:
         h, m = time_str.split(":")
         return int(h), int(m)
@@ -60,7 +49,7 @@ def _parse_time_str(time_str: str) -> tuple[int, int]:
 def _is_hour_minute(
     user_tz: str, hour: int, minute: int, now_utc: datetime | None = None
 ) -> bool:
-    """Return True if local time in *user_tz* is exactly *hour*:*minute*."""
+    """True if the current local time in user_tz is exactly hour:minute."""
     try:
         import zoneinfo
         tz = zoneinfo.ZoneInfo(user_tz)
@@ -77,10 +66,7 @@ def _is_hour_minute(
 
 
 def _already_sent_today(user_id: int, edition: str, now_utc: datetime) -> bool:
-    """Return True if a digest of this edition was already sent today for this user.
-
-    'Today' is defined in UTC to keep the check simple and idempotent.
-    """
+    """True if this edition was already sent to this user today (UTC day boundary)."""
     from .models import Digest, db
 
     today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -102,7 +88,7 @@ def _already_sent_today(user_id: int, edition: str, now_utc: datetime) -> bool:
 
 
 def _hourly_refresh_job(app) -> None:
-    """Pull all sources and upsert into the stories table."""
+    """Fetch all sources and upsert new stories into the DB."""
     with app.app_context():
         from pathlib import Path
         import yaml
@@ -127,7 +113,7 @@ def _hourly_refresh_job(app) -> None:
 
 
 def _digest_job(edition: str, app) -> None:
-    """Send morning or evening digests to eligible users."""
+    """Dispatch morning or evening digests to eligible users."""
     with app.app_context():
         from .models import Digest, DigestStory, User, UserSettings, db
         from pathlib import Path
@@ -144,19 +130,19 @@ def _digest_job(edition: str, app) -> None:
             if settings is None:
                 continue
 
-            # Skip if email or this edition is disabled
+            # skip users with email or this edition disabled
             if not settings.send_email:
                 continue
             attr = "morning_enabled" if edition == "morning" else "evening_enabled"
             if not getattr(settings, attr):
                 continue
 
-            # Check if it's their time
+            # wall-clock match for this user's timezone
             time_str = settings.morning_time if edition == "morning" else settings.evening_time
             if not check_fn(settings.timezone, time_str=time_str, now_utc=now_utc):
                 continue
 
-            # Idempotency: don't double-send
+            # idempotency guard
             if _already_sent_today(user.id, edition, now_utc):
                 log.info("scheduler: already sent %s digest to user_id=%s today", edition, user.id)
                 continue
@@ -174,7 +160,7 @@ def _digest_job(edition: str, app) -> None:
 
 
 def _custom_digest_job(app) -> None:
-    """Send digests for user-defined custom times (beyond morning/evening)."""
+    """Dispatch digests for custom user-defined times (beyond morning/evening presets)."""
     with app.app_context():
         from .models import User, UserDigestTime, UserSettings, db
 
@@ -194,8 +180,7 @@ def _custom_digest_job(app) -> None:
             for ct in custom_times:
                 time_str = ct.send_time
 
-                # Skip times already covered by an enabled preset to avoid
-                # sending two digests at the same moment.
+                # skip if already covered by an enabled morning/evening preset
                 if settings.morning_enabled and time_str == settings.morning_time:
                     continue
                 if settings.evening_enabled and time_str == settings.evening_time:
@@ -208,7 +193,7 @@ def _custom_digest_job(app) -> None:
                 ):
                     continue
 
-                log_edition = f"custom@{time_str}"  # unique per time, fits VARCHAR(16)
+                log_edition = f"custom@{time_str}"  # unique per slot; fits VARCHAR(16)
                 if _already_sent_today(user.id, log_edition, now_utc):
                     continue
 
@@ -237,10 +222,10 @@ def _send_digest_for_user(
     now_utc: datetime,
     app,
 ) -> None:
-    """Run the full pipeline and send a digest for one user."""
+    """Full pipeline + email send for a single user digest."""
     from pathlib import Path
     import yaml
-    from .models import Digest, DigestStory, UserSource, UserTopic, db
+    from .models import Digest, DigestStory, UserBlockedKeyword, UserCustomSource, UserSource, UserTopic, db
     from core import fetch, pipeline, relevance
     from core.render import render_html, render_plaintext
     from core.deliver import build_subject, load_email_config, send_digest
@@ -263,6 +248,11 @@ def _send_digest_for_user(
             if user_source_map.get(s["name"], s.get("enabled", True))
         ]
 
+        # Append user's custom RSS sources
+        custom_sources = db.session.query(UserCustomSource).filter_by(user_id=user.id, enabled=True).all()
+        for cs in custom_sources:
+            user_sources.append({"name": cs.name, "url": cs.url, "category": "custom", "weight": 1.0, "enabled": True})
+
         max_summary_chars = int(settings_yaml.get("digest", {}).get("max_summary_chars", 280))
         category_order = settings_yaml.get("digest", {}).get(
             "category_order",
@@ -270,15 +260,20 @@ def _send_digest_for_user(
         )
         llm_cfg = settings_yaml.get("llm", {}) or {}
 
-        # Per-user interest topics drive LLM personalization (if any are set).
+        # interest topics for LLM personalization (may be empty)
         user_topics = [
             t.topic for t in db.session.query(UserTopic).filter_by(user_id=user.id).all()
+        ]
+
+        # blocked keywords filter
+        user_blocked_kws = [
+            k.keyword for k in db.session.query(UserBlockedKeyword).filter_by(user_id=user.id).all()
         ]
 
         raw = fetch.fetch_all(user_sources)
         total_scanned = len(raw)
         stories = pipeline.normalize(raw, max_summary_chars=max_summary_chars)
-        # Age-window filter only; topic relevance is handled by the LLM below.
+        # age filter only here — topic relevance is handled by LLM scoring below
         stories = pipeline.filter_relevant(stories, [], window_hours)
         source_weights = {s["name"]: float(s.get("weight", 1.0)) for s in all_sources}
         stories = pipeline.rank(stories, source_weights)
@@ -290,7 +285,14 @@ def _send_digest_for_user(
                 max_stories_to_score=int(llm_cfg.get("max_stories_to_score", 50)),
                 fallback_to_all=bool(llm_cfg.get("fallback_to_all", True)),
             )
+        # Apply blocked keyword filter
+        if user_blocked_kws:
+            stories = [
+                s for s in stories
+                if not any(kw.lower() in (s.title + " " + s.summary).lower() for kw in user_blocked_kws)
+            ]
         stories = pipeline.dedupe(stories)
+        stories = pipeline.cluster_stories(stories)
         stories = pipeline.cap(stories, settings.max_stories)
 
         html = render_html(stories, edition=render_edition,
@@ -312,7 +314,7 @@ def _send_digest_for_user(
             unsubscribe_url=unsubscribe_url,
         )
 
-        # Log to DB
+        # persist digest record
         digest = Digest(
             user_id=user.id,
             edition=log_edition,
@@ -342,14 +344,14 @@ def _send_digest_for_user(
 
 
 def init_scheduler(app) -> None:
-    """Create and start the background scheduler (if enabled)."""
+    """Start the scheduler. No-op if ENABLE_SCHEDULER != 1."""
     global _scheduler
 
     if os.environ.get("ENABLE_SCHEDULER") != "1":
         log.info("scheduler: ENABLE_SCHEDULER != 1, skipping")
         return
 
-    # Guard against Flask reloader spawning two schedulers
+    # prevent double-start under Werkzeug reloader
     reloader_active = os.environ.get("WERKZEUG_RUN_MAIN")
     if reloader_active is not None and reloader_active != "true":
         log.info("scheduler: not in main werkzeug process, skipping")
@@ -361,7 +363,7 @@ def init_scheduler(app) -> None:
 
     _scheduler = BackgroundScheduler(timezone="UTC")
 
-    # Job 1: hourly story refresh
+    # 1. hourly story cache refresh
     _scheduler.add_job(
         func=_hourly_refresh_job,
         trigger="interval",
@@ -371,7 +373,7 @@ def init_scheduler(app) -> None:
         replace_existing=True,
     )
 
-    # Job 2: morning digest — every minute
+    # 2. morning digest — check every minute
     _scheduler.add_job(
         func=_digest_job,
         trigger="cron",
@@ -381,7 +383,7 @@ def init_scheduler(app) -> None:
         replace_existing=True,
     )
 
-    # Job 3: evening digest — every minute
+    # 3. evening digest — check every minute
     _scheduler.add_job(
         func=_digest_job,
         trigger="cron",
@@ -391,12 +393,24 @@ def init_scheduler(app) -> None:
         replace_existing=True,
     )
 
-    # Job 4: custom user-defined times — every minute
+    # 4. custom delivery times — check every minute
     _scheduler.add_job(
         func=_custom_digest_job,
         trigger="cron",
         minute="*",
         id="custom_digest",
+        args=[app],
+        replace_existing=True,
+    )
+
+    # 5. onboarding day-3 nudge — runs once daily at 09:00 UTC
+    from app.onboarding import send_day3_nudge
+    _scheduler.add_job(
+        func=send_day3_nudge,
+        trigger="cron",
+        hour=9,
+        minute=0,
+        id="onboarding_day3",
         args=[app],
         replace_existing=True,
     )

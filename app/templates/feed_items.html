@@ -1,7 +1,6 @@
-{% from "_macros.html" import story_card, category_badge, hero_card_portrait, story_list_item, ad_slot %}
+{% from "_macros.html" import story_card, category_badge, hero_card_portrait, story_list_item, ad_slot with context %}
 
 {% if ai_meta and ai_meta.personalized %}
-<!-- Personalized feed header -->
 <div class="flex items-start gap-3 px-4 py-3 rounded-2xl
             bg-indigo-500/5 dark:bg-indigo-500/10
             border border-indigo-200/60 dark:border-indigo-500/20 mb-8">
@@ -27,7 +26,6 @@
   </div>
 </div>
 {% else %}
-<!-- No-topics nudge (public feed) -->
 <div class="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl
             bg-zinc-50 dark:bg-zinc-900/60
             border border-zinc-200/60 dark:border-zinc-800 mb-8">
@@ -170,17 +168,21 @@
         <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i>
         <h3 class="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Your interests today</h3>
       </div>
-      <ul class="space-y-2">
+      <ul class="space-y-1">
         {% for topic, count in topic_counts %}
-        <li class="flex items-center justify-between gap-3 py-1.5 text-sm
-                   border-b border-zinc-100 dark:border-zinc-800/60 last:border-0">
-          <span class="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 font-medium truncate">
-            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
-            {{ topic }}
-          </span>
-          <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
-            {{ count }} {{ 'story' if count == 1 else 'stories' }}
-          </span>
+        <li>
+          <a href="{{ url_for('main.feed', topic=topic) }}"
+             class="flex items-center justify-between gap-3 py-1.5 text-sm
+                    border-b border-zinc-100 dark:border-zinc-800/60 last:border-0
+                    {% if active_topic is defined and active_topic == topic %}text-indigo-600 dark:text-indigo-400 font-semibold{% else %}hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors{% endif %}">
+            <span class="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 font-medium truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+              {{ topic }}
+            </span>
+            <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
+              {{ count }} {{ 'story' if count == 1 else 'stories' }}
+            </span>
+          </a>
         </li>
         {% endfor %}
       </ul>

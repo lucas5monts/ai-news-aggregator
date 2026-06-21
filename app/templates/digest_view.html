@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ digest.edition | title }} Digest — {{ digest.sent_at.strftime('%b %d, %Y') }} — AI News{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-4 flex-wrap">
+  <div>
+    <a href="{{ url_for('digest_archive.digest_list') }}"
+       class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline mb-2">
+      <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+      Digest History
+    </a>
+    <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-white capitalize">
+      {{ digest.edition }} Digest
+    </h1>
+    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+      Sent {{ digest.sent_at.strftime('%B %d, %Y at %H:%M UTC') }}
+      &middot; {{ digest.story_count }} {{ 'story' if digest.story_count == 1 else 'stories' }}
+    </p>
+  </div>
+</div>
+
+<div class="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900 shadow-sm">
+  <iframe
+    srcdoc="{{ digest.html_blob | e }}"
+    sandbox="allow-same-origin"
+    class="w-full border-0"
+    style="min-height: 600px;"
+    onload="this.style.height = (this.contentDocument.documentElement.scrollHeight + 32) + 'px'"
+    title="Digest: {{ digest.edition }} {{ digest.sent_at.strftime('%Y-%m-%d') }}">
+  </iframe>
+</div>
+{% endblock %}

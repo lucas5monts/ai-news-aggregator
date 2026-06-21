@@ -1,8 +1,4 @@
-"""Fetch RSS/Atom feeds in parallel.
-
-Returns a flat list of raw entries with their source attached.
-Failures on individual feeds are logged but don't crash the run.
-"""
+"""Fetch RSS/Atom feeds in parallel; returns flat list of RawEntry. Per-feed errors are logged, not raised."""
 from __future__ import annotations
 
 import asyncio
@@ -18,10 +14,9 @@ log = logging.getLogger(__name__)
 
 # How long to wait per feed before giving up
 FETCH_TIMEOUT_SECONDS = 15
-# Maximum bytes to read from a feed before parsing. RSS feeds should be small;
-# this prevents a bad source from forcing the process to hold a huge response.
+# cap per-feed download size — rogue sources can send huge responses
 MAX_FEED_BYTES = 2_000_000
-# Pretend to be a real browser so we don't get blocked by aggressive WAFs
+# spoof a real browser UA to avoid WAF blocks
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -31,7 +26,7 @@ USER_AGENT = (
 
 @dataclass
 class RawEntry:
-    """One feed entry with its source attached. Pre-normalization."""
+    """Raw feed entry with source metadata, before pipeline normalization."""
 
     source_name: str
     source_category: str
@@ -42,7 +37,7 @@ class RawEntry:
 async def _fetch_one(
     client: httpx.AsyncClient, src: dict[str, Any]
 ) -> list[RawEntry]:
-    """Fetch one feed; return its entries (or [] on failure)."""
+    """Fetch and parse one feed; [] on any error."""
     name = src["name"]
     url = src["url"]
     started = time.monotonic()
@@ -59,7 +54,7 @@ async def _fetch_one(
         log.warning("fetch failed for %s (%s): %s", name, url, e)
         return []
 
-    # feedparser is sync; parse from the already-downloaded bytes
+    # feedparser is sync-only — parse from already-downloaded bytes
     parsed = feedparser.parse(bytes(body))
     if parsed.bozo and not parsed.entries:
         log.warning("parse failed for %s: %s", name, parsed.bozo_exception)
@@ -91,5 +86,5 @@ async def _fetch_all_async(sources: list[dict[str, Any]]) -> list[RawEntry]:
 
 
 def fetch_all(sources: list[dict[str, Any]]) -> list[RawEntry]:
-    """Sync wrapper. Pulls all enabled sources in parallel."""
+    """Sync wrapper around the async fetcher."""
     return asyncio.run(_fetch_all_async(sources))
